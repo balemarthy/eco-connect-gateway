@@ -1,5 +1,9 @@
 /*
  * Console on USART2 (ST-LINK virtual COM port, 115200 8N1).
+ *
+ * Polled before the scheduler starts, interrupt-driven TX afterwards.
+ * After the scheduler starts there is a single writer: the log task. Everything
+ * else prints through the log module (app/log/log.h).
  */
 #ifndef UART_CONSOLE_H
 #define UART_CONSOLE_H

@@ -1,8 +1,12 @@
 /*
- * Step 03: FreeRTOS V11.1.0 with a heartbeat task.
+ * Eco-Connect gateway - entry point.
+ * Hardware init, then create the tasks and hand over to the scheduler.
  */
 #include "FreeRTOS.h"
 #include "task.h"
+
+#define LOG_TAG LOG_MOD_MAIN
+#include "log.h"
 
 #include "board.h"
 #include "clock.h"
@@ -15,11 +19,14 @@ int main(void)
     clock_source_t src = clock_init();
     board_init();
     (void)console_init();
+    log_init();
 
     console_puts("\r\nEco-Connect boot\r\n");
-    console_printf("SYSCLK=%lu src=%s\r\n", (unsigned long)HAL_RCC_GetSysClockFreq(), clock_source_name(src));
-    console_puts("FreeRTOS " tskKERNEL_VERSION_NUMBER "\r\n");
+    LOG_I("boot");
+    LOG_I("SYSCLK=%lu src=%s", (unsigned long)HAL_RCC_GetSysClockFreq(), clock_source_name(src));
+    LOG_I("FreeRTOS %s", tskKERNEL_VERSION_NUMBER);
 
+    log_set_level(LOG_MOD_HB, LOG_LVL_DEBUG);     /* B1 toggles it back to info */
     heartbeat_start();
     vTaskStartScheduler();
 

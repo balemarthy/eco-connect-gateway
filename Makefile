@@ -31,6 +31,7 @@ DEFS := -DSTM32F411xE -DUSE_HAL_DRIVER
 # Our code
 SRC_APP := \
   app/main.c \
+  app/log/log.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -67,6 +68,7 @@ SRC_RTOS := \
 
 INC := \
   -Iapp \
+  -Iapp/log \
   -Ibsp \
   -Idrivers \
   -I$(HAL_DIR)/Inc \

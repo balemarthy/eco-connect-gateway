@@ -23,6 +23,10 @@
 #define BOARD_CONSOLE_AF      GPIO_AF7_USART2
 #define BOARD_CONSOLE_BAUD    115200U
 
+/* ---- NVIC priorities (0 = highest). Any ISR that calls a FreeRTOS "FromISR"
+ *      function must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (5). */
+#define BOARD_IRQ_PRIO_CONSOLE   7U
+
 /* ---- clocks ---------------------------------------------------------------- */
 #define BOARD_SYSCLK_HZ       100000000U       /* HCLK 100 MHz, APB1 50 MHz, APB2 100 MHz */
 
