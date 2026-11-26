@@ -16,6 +16,7 @@
 #include "app_task.h"
 #include "json_reading.h"
 #include "sensor.h"
+#include "storage_task.h"
 
 #define APP_STACK_WORDS  512U
 #define APP_PRIORITY     (tskIDLE_PRIORITY + 3U)
@@ -51,6 +52,9 @@ static void app_task(void *arg)
         have_latest = true;
         taskEXIT_CRITICAL();
         count++;
+        if (!storage_submit(&r)) {
+            LOG_D("storage queue full");
+        }
 
         app_format_centi(r.value_centi, t, sizeof t);
         if (r.status == READING_OK) {

@@ -17,6 +17,7 @@
 #include "proto_task.h"
 #include "sensor.h"
 #include "spi_bus.h"
+#include "storage_task.h"
 #include "task_heartbeat.h"
 #include "uart_console.h"
 #include "w25q.h"
@@ -40,6 +41,7 @@ int main(void)
     net_init();                                   /* tcpip thread adds the ENC28J60 netif */
     sensor_start();                               /* sampling timer -> readings queue */
     app_start();                                  /* readings queue -> latest reading */
+    storage_start();                              /* JSON lines on the W25Q, RAM tail for /log */
     proto_start();                                /* framed serial link on USART1 */
     http_server_start();                          /* GET /temp, POST /interval, ... on :80 */
     heartbeat_start();

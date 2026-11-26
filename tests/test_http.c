@@ -230,6 +230,29 @@ static void route_errors(void)
     CHECK_EQ_INT(route("GET /version HTTP/1.1\r\n\r\n", &resp), 404);                 /* not registered here */
 }
 
+static reg_status_t get_history(json_writer_t *w, void *ctx)
+{
+    (void)ctx;
+    jw_kv_bool(w, "persisted", false);
+    jw_key(w, "records");
+    jw_array_begin(w);
+    jw_array_end(w);
+    return REG_OK;
+}
+
+static void route_log(void)
+{
+    http_response_t resp;
+    setup();
+    CHECK_EQ_INT(route("GET /log HTTP/1.1\r\n\r\n", &resp), 404);       /* storage not registered */
+    CHECK(strstr(body, "unknown key") != NULL);
+    static const reg_entry_t e_hist = { "history", NULL, get_history, NULL, NULL };
+    CHECK_EQ_INT(registry_register(&e_hist), REG_OK);
+    CHECK_EQ_INT(route("GET /log?since_seq=3 HTTP/1.1\r\n\r\n", &resp), 200);
+    CHECK_EQ_STR(body, "{\"persisted\":false,\"records\":[]}");
+    CHECK_EQ_INT(route("POST /log HTTP/1.1\r\n\r\n", &resp), 405);
+}
+
 static void route_root_page(void)
 {
     http_response_t resp;
@@ -271,6 +294,7 @@ int main(void)
     RUN(route_interval);
     RUN(route_interval_errors);
     RUN(route_errors);
+    RUN(route_log);
     RUN(route_root_page);
     RUN(response_header);
     TEST_SUMMARY("test_http");

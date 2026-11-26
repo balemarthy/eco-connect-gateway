@@ -56,6 +56,7 @@ SRC_APP := \
   app/http/http_response.c \
   app/http/http_router.c \
   app/http/http_server.c \
+  app/storage/storage_task.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -105,7 +106,11 @@ SRC_LWIP := \
 
 SRC_MW := \
   middleware/lwip_port/port_misc.c \
-  middleware/lwip_port/ethernetif_enc28j60.c
+  middleware/lwip_port/ethernetif_enc28j60.c \
+  middleware/fatfs_port/diskio.c
+
+FATFS_DIR := third_party/fatfs
+SRC_FATFS := $(FATFS_DIR)/source/ff.c
 
 INC := \
   -Iapp \
@@ -117,6 +122,9 @@ INC := \
   -Iapp/proto \
   -Iapp/registry \
   -Iapp/http \
+  -Iapp/storage \
+  -Imiddleware/fatfs_port \
+  -I$(FATFS_DIR)/source \
   -Imiddleware/lwip_port \
   -Ibsp \
   -Idrivers \
@@ -132,7 +140,7 @@ INC := \
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
-SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP)
+SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP) $(SRC_FATFS)
 
 # ---------------------------------------------------------------- flags
 OPT    := -Os -g3

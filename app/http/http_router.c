@@ -231,6 +231,12 @@ static void h_version(const http_request_t *req, http_response_t *resp)
     reply_registry_get("version", resp);
 }
 
+static void h_log(const http_request_t *req, http_response_t *resp)
+{
+    (void)req;
+    reply_registry_get("history", resp);
+}
+
 static void page_section(http_response_t *resp, const char *title, const char *key)
 {
     char tmp[320];
@@ -280,6 +286,7 @@ static const route_t routes[] = {
     { "/interval", h_interval_get, h_interval_post, "GET, POST" },
     { "/status",   h_status,       NULL,            "GET" },
     { "/version",  h_version,      NULL,            "GET" },
+    { "/log",      h_log,          NULL,            "GET" },
 };
 
 void http_route(const http_request_t *req, http_response_t *resp)

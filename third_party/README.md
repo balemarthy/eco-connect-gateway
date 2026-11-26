@@ -12,5 +12,7 @@ licence files and headers. Project changes never go in this folder: configuratio
 | `lwip/` | lwIP TCP/IP stack (`src/` + FreeRTOS `sys_arch` from contrib) | 2.2.0 | BSD-3-Clause | step 08 |
 | `fatfs/` | FatFs generic FAT file system module | R0.16 | FatFs licence (BSD-style, 1 clause) | step 16 |
 
-Only the parts that the build needs are copied. The table is the single place to look up
+Only the parts that the build needs are copied. FatFs: the template `ffconf.h` and
+`diskio.c` are not copied; ours are in `middleware/fatfs_port/` (an `ffconf.h` next to `ff.h`
+would be picked first by `#include "ffconf.h"`). The table is the single place to look up
 versions when you update a component.
