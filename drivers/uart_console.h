@@ -12,5 +12,7 @@ void console_write(const char *buf, size_t len);
 void console_puts(const char *s);
 /* Formats into a fixed buffer (truncates). Boot and diagnostics only, not the data path. */
 void console_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+/* Busy-waits on the data register; safe with interrupts off (fault and assert paths). */
+void console_panic(const char *s);
 
 #endif /* UART_CONSOLE_H */

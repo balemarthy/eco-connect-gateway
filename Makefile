@@ -30,13 +30,16 @@ DEFS := -DSTM32F411xE -DUSE_HAL_DRIVER
 # ---------------------------------------------------------------- sources
 # Our code
 SRC_APP := \
-  app/main.c
+  app/main.c \
+  app/rtos_hooks.c \
+  app/task_heartbeat.c
 
 SRC_BSP := \
   bsp/syscalls.c \
   bsp/system_stm32f4xx.c \
   bsp/clock.c \
   bsp/board.c \
+  bsp/hal_timebase_tim.c \
   bsp/stm32f4xx_it.c
 
 SRC_DRV := \
@@ -51,17 +54,30 @@ HAL_MODULES := hal hal_cortex hal_rcc hal_rcc_ex hal_gpio hal_dma hal_dma_ex hal
                hal_tim hal_tim_ex
 SRC_HAL := $(foreach m,$(HAL_MODULES),$(HAL_DIR)/Src/stm32f4xx_$(m).c)
 
+RTOS_DIR := third_party/freertos
+SRC_RTOS := \
+  $(RTOS_DIR)/tasks.c \
+  $(RTOS_DIR)/queue.c \
+  $(RTOS_DIR)/list.c \
+  $(RTOS_DIR)/timers.c \
+  $(RTOS_DIR)/event_groups.c \
+  $(RTOS_DIR)/stream_buffer.c \
+  $(RTOS_DIR)/portable/GCC/ARM_CM4F/port.c \
+  $(RTOS_DIR)/portable/MemMang/heap_4.c
+
 INC := \
   -Iapp \
   -Ibsp \
   -Idrivers \
   -I$(HAL_DIR)/Inc \
   -Ithird_party/cmsis/Include \
-  -Ithird_party/cmsis/Device/ST/STM32F4xx/Include
+  -Ithird_party/cmsis/Device/ST/STM32F4xx/Include \
+  -I$(RTOS_DIR)/include \
+  -I$(RTOS_DIR)/portable/GCC/ARM_CM4F
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
-SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_HAL)
+SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_HAL) $(SRC_RTOS)
 
 # ---------------------------------------------------------------- flags
 OPT    := -Os -g3

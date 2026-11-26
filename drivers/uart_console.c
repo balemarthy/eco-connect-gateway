@@ -38,6 +38,19 @@ void console_puts(const char *s)
     console_write(s, strlen(s));
 }
 
+void console_panic(const char *s)
+{
+    USART_TypeDef *u = BOARD_CONSOLE_UART;
+
+    while (*s != '\0') {
+        while ((u->SR & USART_SR_TXE) == 0U) {
+        }
+        u->DR = (uint8_t)*s++;
+    }
+    while ((u->SR & USART_SR_TC) == 0U) {
+    }
+}
+
 void console_printf(const char *fmt, ...)
 {
     static char buf[CONSOLE_FMT_SIZE];
