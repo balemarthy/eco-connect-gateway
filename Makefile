@@ -25,27 +25,43 @@ endif
 # ---------------------------------------------------------------- target CPU
 MCU := -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard
 
-DEFS := -DSTM32F411xE
+DEFS := -DSTM32F411xE -DUSE_HAL_DRIVER
 
 # ---------------------------------------------------------------- sources
 # Our code
 SRC_APP := \
   app/main.c
 
+SRC_BSP := \
+  bsp/syscalls.c \
+  bsp/system_stm32f4xx.c \
+  bsp/clock.c \
+  bsp/board.c \
+  bsp/stm32f4xx_it.c
+
+SRC_DRV := \
+  drivers/uart_console.c
+
 SRC_ASM := bsp/startup_stm32f411retx.s
+
+# Third-party code (vendored, unmodified)
+HAL_DIR := third_party/stm32f4xx_hal
+HAL_MODULES := hal hal_cortex hal_rcc hal_rcc_ex hal_gpio hal_dma hal_dma_ex hal_exti \
+               hal_flash hal_flash_ex hal_flash_ramfunc hal_pwr hal_pwr_ex hal_uart \
+               hal_tim hal_tim_ex
+SRC_HAL := $(foreach m,$(HAL_MODULES),$(HAL_DIR)/Src/stm32f4xx_$(m).c)
 
 INC := \
   -Iapp \
   -Ibsp \
+  -Idrivers \
+  -I$(HAL_DIR)/Inc \
   -Ithird_party/cmsis/Include \
   -Ithird_party/cmsis/Device/ST/STM32F4xx/Include
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
-SRC_BSP := \
-  bsp/syscalls.c
-
-SRC_C := $(SRC_APP) $(SRC_BSP)
+SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_HAL)
 
 # ---------------------------------------------------------------- flags
 OPT    := -Os -g3
