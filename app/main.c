@@ -19,6 +19,7 @@
 #include "spi_bus.h"
 #include "task_heartbeat.h"
 #include "uart_console.h"
+#include "w25q.h"
 
 int main(void)
 {
@@ -35,6 +36,7 @@ int main(void)
 
     commands_init();                              /* GET-SET registry table */
     (void)spi_bus_init();
+    (void)w25q_init();                            /* probe only: data path is a mentee task */
     net_init();                                   /* tcpip thread adds the ENC28J60 netif */
     sensor_start();                               /* sampling timer -> readings queue */
     app_start();                                  /* readings queue -> latest reading */

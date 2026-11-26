@@ -72,6 +72,7 @@ SRC_DRV := \
   drivers/spi_bus.c \
   drivers/i2c_bus.c \
   drivers/uart_link.c \
+  drivers/w25q/w25q.c \
   drivers/enc28j60/enc28j60.c
 
 SRC_ASM := bsp/startup_stm32f411retx.s
@@ -120,6 +121,7 @@ INC := \
   -Ibsp \
   -Idrivers \
   -Idrivers/enc28j60 \
+  -Idrivers/w25q \
   -I$(HAL_DIR)/Inc \
   -Ithird_party/cmsis/Include \
   -Ithird_party/cmsis/Device/ST/STM32F4xx/Include \
