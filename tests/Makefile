@@ -15,14 +15,16 @@ EXE :=
 endif
 
 CFLAGS := -std=c11 -O1 -g -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Werror \
-          -I. -I../app/json -I../app/core -I../app/proto -I../app/registry
+          -I. -I../app/json -I../app/core -I../app/proto -I../app/registry -I../app/http
 
 # test name -> sources under test
 SRC_test_json := ../app/json/json_writer.c ../app/json/json_parser.c ../app/json/json_reading.c
 SRC_test_serial_protocol := ../app/proto/serial_protocol.c
 SRC_test_registry := ../app/registry/registry.c ../app/json/json_writer.c
+SRC_test_http := ../app/http/http_router.c ../app/http/http_response.c ../app/registry/registry.c \
+                 ../app/json/json_writer.c ../app/json/json_parser.c
 
-TESTS := test_json test_serial_protocol test_registry
+TESTS := test_json test_serial_protocol test_registry test_http
 
 BINS := $(addprefix $(BUILD)/,$(addsuffix $(EXE),$(TESTS)))
 

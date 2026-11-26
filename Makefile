@@ -53,6 +53,9 @@ SRC_APP := \
   app/proto/proto_task.c \
   app/registry/registry.c \
   app/registry/commands.c \
+  app/http/http_response.c \
+  app/http/http_router.c \
+  app/http/http_server.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -112,6 +115,7 @@ INC := \
   -Iapp/json \
   -Iapp/proto \
   -Iapp/registry \
+  -Iapp/http \
   -Imiddleware/lwip_port \
   -Ibsp \
   -Idrivers \

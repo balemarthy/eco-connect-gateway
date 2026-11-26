@@ -12,6 +12,7 @@
 #include "board.h"
 #include "clock.h"
 #include "commands.h"
+#include "http_server.h"
 #include "net_init.h"
 #include "proto_task.h"
 #include "sensor.h"
@@ -38,6 +39,7 @@ int main(void)
     sensor_start();                               /* sampling timer -> readings queue */
     app_start();                                  /* readings queue -> latest reading */
     proto_start();                                /* framed serial link on USART1 */
+    http_server_start();                          /* GET /temp, POST /interval, ... on :80 */
     heartbeat_start();
     vTaskStartScheduler();
 
