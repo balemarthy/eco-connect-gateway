@@ -41,6 +41,13 @@
 #define BOARD_W25Q_CS_PORT    GPIOB
 #define BOARD_W25Q_CS_PIN     GPIO_PIN_1
 
+/* ---- I2C1: temperature sensor (Arduino D15/D14) --------------------------- */
+#define BOARD_I2C             I2C1
+#define BOARD_I2C_PORT        GPIOB
+#define BOARD_I2C_SCL_PIN     GPIO_PIN_8
+#define BOARD_I2C_SDA_PIN     GPIO_PIN_9
+#define BOARD_I2C_AF          GPIO_AF4_I2C1
+
 /* ---- NVIC priorities (0 = highest). Any ISR that calls a FreeRTOS "FromISR"
  *      function must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (5). */
 #define BOARD_IRQ_PRIO_ENC_INT   6U

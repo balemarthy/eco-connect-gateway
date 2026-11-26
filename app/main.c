@@ -8,9 +8,11 @@
 #define LOG_TAG LOG_MOD_MAIN
 #include "log.h"
 
+#include "app_task.h"
 #include "board.h"
 #include "clock.h"
 #include "net_init.h"
+#include "sensor.h"
 #include "spi_bus.h"
 #include "task_heartbeat.h"
 #include "uart_console.h"
@@ -30,6 +32,8 @@ int main(void)
 
     (void)spi_bus_init();
     net_init();                                   /* tcpip thread adds the ENC28J60 netif */
+    sensor_start();                               /* sampling timer -> readings queue */
+    app_start();                                  /* readings queue -> latest reading */
     heartbeat_start();
     vTaskStartScheduler();
 

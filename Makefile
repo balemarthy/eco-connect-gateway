@@ -31,12 +31,20 @@ DEFS := -DSTM32F411xE -DUSE_HAL_DRIVER
 DHCP ?= 0
 DEFS += -DNET_USE_DHCP=$(DHCP)
 
+# make SENSOR=i2c : real I2C sensor (mentee task) instead of the simulated source
+SENSOR ?= sim
+ifeq ($(SENSOR),i2c)
+DEFS += -DSENSOR_USE_I2C=1
+endif
+
 # ---------------------------------------------------------------- sources
 # Our code
 SRC_APP := \
   app/main.c \
   app/log/log.c \
   app/net/net_init.c \
+  app/sensor/sensor_task.c \
+  app/core/app_task.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -51,6 +59,7 @@ SRC_BSP := \
 SRC_DRV := \
   drivers/uart_console.c \
   drivers/spi_bus.c \
+  drivers/i2c_bus.c \
   drivers/enc28j60/enc28j60.c
 
 SRC_ASM := bsp/startup_stm32f411retx.s
@@ -89,6 +98,8 @@ INC := \
   -Iapp \
   -Iapp/log \
   -Iapp/net \
+  -Iapp/sensor \
+  -Iapp/core \
   -Imiddleware/lwip_port \
   -Ibsp \
   -Idrivers \

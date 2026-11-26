@@ -1,0 +1,84 @@
+/*
+ * Application task.
+ *
+ * Blocks on the readings queue, keeps the newest reading behind a short
+ * critical section (a 20-byte copy) and reports it on the log.
+ */
+#include <stdio.h>
+
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
+
+#define LOG_TAG LOG_MOD_APP
+#include "log.h"
+
+#include "app_task.h"
+#include "sensor.h"
+
+#define APP_STACK_WORDS  512U
+#define APP_PRIORITY     (tskIDLE_PRIORITY + 3U)
+
+static StaticTask_t task_tcb;
+static StackType_t  task_stack[APP_STACK_WORDS];
+
+static reading_t latest;
+static bool      have_latest;
+static volatile uint32_t count;
+
+void app_format_centi(int32_t centi, char *buf, unsigned size)
+{
+    uint32_t a = (centi < 0) ? (uint32_t)(-(int64_t)centi) : (uint32_t)centi;
+    (void)snprintf(buf, size, "%s%lu.%02lu", (centi < 0) ? "-" : "",
+                   (unsigned long)(a / 100U), (unsigned long)(a % 100U));
+}
+
+static void app_task(void *arg)
+{
+    (void)arg;
+    QueueHandle_t q = sensor_readings_queue();
+    reading_t r;
+    char t[16];
+
+    for (;;) {
+        if (xQueueReceive(q, &r, portMAX_DELAY) != pdPASS) {
+            continue;
+        }
+        taskENTER_CRITICAL();
+        latest = r;
+        have_latest = true;
+        taskEXIT_CRITICAL();
+        count++;
+
+        app_format_centi(r.value_centi, t, sizeof t);
+        if (r.status == READING_OK) {
+            LOG_I("seq=%lu node=%u t=%sC", (unsigned long)r.seq, (unsigned)r.node, t);
+        } else {
+            LOG_W("seq=%lu node=%u sensor error (last t=%sC)", (unsigned long)r.seq, (unsigned)r.node, t);
+        }
+    }
+}
+
+void app_start(void)
+{
+    TaskHandle_t h = xTaskCreateStatic(app_task, "app", APP_STACK_WORDS, NULL, APP_PRIORITY,
+                                       task_stack, &task_tcb);
+    configASSERT(h != NULL);
+}
+
+bool app_latest(reading_t *out)
+{
+    bool ok;
+    taskENTER_CRITICAL();
+    ok = have_latest;
+    if (ok) {
+        *out = latest;
+    }
+    taskEXIT_CRITICAL();
+    return ok;
+}
+
+uint32_t app_readings_count(void)
+{
+    return count;
+}
