@@ -12,6 +12,7 @@
 #include "board.h"
 #include "clock.h"
 #include "net_init.h"
+#include "proto_task.h"
 #include "sensor.h"
 #include "spi_bus.h"
 #include "task_heartbeat.h"
@@ -34,6 +35,7 @@ int main(void)
     net_init();                                   /* tcpip thread adds the ENC28J60 netif */
     sensor_start();                               /* sampling timer -> readings queue */
     app_start();                                  /* readings queue -> latest reading */
+    proto_start();                                /* framed serial link on USART1 */
     heartbeat_start();
     vTaskStartScheduler();
 

@@ -49,6 +49,8 @@ SRC_APP := \
   app/json/json_writer.c \
   app/json/json_parser.c \
   app/json/json_reading.c \
+  app/proto/serial_protocol.c \
+  app/proto/proto_task.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -64,6 +66,7 @@ SRC_DRV := \
   drivers/uart_console.c \
   drivers/spi_bus.c \
   drivers/i2c_bus.c \
+  drivers/uart_link.c \
   drivers/enc28j60/enc28j60.c
 
 SRC_ASM := bsp/startup_stm32f411retx.s
@@ -105,6 +108,7 @@ INC := \
   -Iapp/sensor \
   -Iapp/core \
   -Iapp/json \
+  -Iapp/proto \
   -Imiddleware/lwip_port \
   -Ibsp \
   -Idrivers \

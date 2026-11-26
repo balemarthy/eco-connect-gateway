@@ -109,5 +109,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
         io.Speed     = GPIO_SPEED_FREQ_HIGH;
         io.Alternate = BOARD_CONSOLE_AF;
         HAL_GPIO_Init(BOARD_CONSOLE_PORT, &io);
+    } else if (huart->Instance == BOARD_LINK_UART) {
+        __HAL_RCC_USART1_CLK_ENABLE();
+        __HAL_RCC_GPIOA_CLK_ENABLE();
+        io.Pin       = BOARD_LINK_TX_PIN | BOARD_LINK_RX_PIN;
+        io.Mode      = GPIO_MODE_AF_PP;
+        io.Pull      = GPIO_PULLUP;
+        io.Speed     = GPIO_SPEED_FREQ_HIGH;
+        io.Alternate = BOARD_LINK_AF;
+        HAL_GPIO_Init(BOARD_LINK_PORT, &io);
     }
 }
