@@ -48,7 +48,7 @@ make test
 ```
 Console:
 ```
-[I][sup] watchdog 2000 ms, 9 tasks watched
+[I][sup] watchdog 2000 ms, 7 tasks watched        (net and tcpip register once they run)
 [I][fsm] IDLE -> SAMPLING (reading_ok)
 [I][fsm] SAMPLING -> CONNECTED (link_up)
 [I][fsm] CONNECTED -> REPORTING (report)        after curl /temp
