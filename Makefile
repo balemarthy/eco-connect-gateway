@@ -44,7 +44,8 @@ SRC_BSP := \
   bsp/stm32f4xx_it.c
 
 SRC_DRV := \
-  drivers/uart_console.c
+  drivers/uart_console.c \
+  drivers/spi_bus.c
 
 SRC_ASM := bsp/startup_stm32f411retx.s
 
@@ -52,7 +53,7 @@ SRC_ASM := bsp/startup_stm32f411retx.s
 HAL_DIR := third_party/stm32f4xx_hal
 HAL_MODULES := hal hal_cortex hal_rcc hal_rcc_ex hal_gpio hal_dma hal_dma_ex hal_exti \
                hal_flash hal_flash_ex hal_flash_ramfunc hal_pwr hal_pwr_ex hal_uart \
-               hal_tim hal_tim_ex
+               hal_tim hal_tim_ex hal_spi
 SRC_HAL := $(foreach m,$(HAL_MODULES),$(HAL_DIR)/Src/stm32f4xx_$(m).c)
 
 RTOS_DIR := third_party/freertos

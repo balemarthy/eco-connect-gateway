@@ -23,6 +23,24 @@
 #define BOARD_CONSOLE_AF      GPIO_AF7_USART2
 #define BOARD_CONSOLE_BAUD    115200U
 
+/* ---- SPI2: ENC28J60 + W25Q on one bus, one CS each ------------------------ */
+#define BOARD_SPI             SPI2
+#define BOARD_SPI_PORT        GPIOB
+#define BOARD_SPI_SCK_PIN     GPIO_PIN_13
+#define BOARD_SPI_MISO_PIN    GPIO_PIN_14
+#define BOARD_SPI_MOSI_PIN    GPIO_PIN_15
+#define BOARD_SPI_AF          GPIO_AF5_SPI2
+
+#define BOARD_ENC_CS_PORT     GPIOB
+#define BOARD_ENC_CS_PIN      GPIO_PIN_12
+#define BOARD_ENC_INT_PORT    GPIOC
+#define BOARD_ENC_INT_PIN     GPIO_PIN_4       /* EXTI4, active low */
+#define BOARD_ENC_RST_PORT    GPIOC
+#define BOARD_ENC_RST_PIN     GPIO_PIN_5       /* active low */
+
+#define BOARD_W25Q_CS_PORT    GPIOB
+#define BOARD_W25Q_CS_PIN     GPIO_PIN_1
+
 /* ---- NVIC priorities (0 = highest). Any ISR that calls a FreeRTOS "FromISR"
  *      function must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (5). */
 #define BOARD_IRQ_PRIO_CONSOLE   7U

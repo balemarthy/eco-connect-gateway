@@ -30,7 +30,8 @@ typedef enum {
 /* One entry per module; the name is the tag printed in the line. */
 #define LOG_MODULES(X) \
     X(LOG_MOD_MAIN, "main") \
-    X(LOG_MOD_HB,   "hb")
+    X(LOG_MOD_HB,   "hb")   \
+    X(LOG_MOD_SPI,  "spi")
 
 typedef enum {
 #define LOG_ENUM_ENTRY(id, name) id,

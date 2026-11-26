@@ -23,6 +23,37 @@ void board_init(void)
     io.Mode = GPIO_MODE_INPUT;
     io.Pull = GPIO_NOPULL;                         /* external pull-up on the Nucleo */
     HAL_GPIO_Init(BOARD_B1_PORT, &io);
+
+    /* Every SPI chip-select high (deselected) before the bus is clocked, so no
+       device sees the first SCK edges as a command. */
+    HAL_GPIO_WritePin(BOARD_ENC_CS_PORT, BOARD_ENC_CS_PIN, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(BOARD_W25Q_CS_PORT, BOARD_W25Q_CS_PIN, GPIO_PIN_SET);
+    io.Pin   = BOARD_ENC_CS_PIN | BOARD_W25Q_CS_PIN;
+    io.Mode  = GPIO_MODE_OUTPUT_PP;
+    io.Pull  = GPIO_NOPULL;
+    io.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOB, &io);
+
+    /* ENC28J60 hardware reset line, released (high). */
+    HAL_GPIO_WritePin(BOARD_ENC_RST_PORT, BOARD_ENC_RST_PIN, GPIO_PIN_SET);
+    io.Pin   = BOARD_ENC_RST_PIN;
+    io.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(BOARD_ENC_RST_PORT, &io);
+}
+
+/* Called by HAL_SPI_Init(). */
+void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
+{
+    if (hspi->Instance == BOARD_SPI) {
+        __HAL_RCC_SPI2_CLK_ENABLE();
+        GPIO_InitTypeDef io = {0};
+        io.Pin       = BOARD_SPI_SCK_PIN | BOARD_SPI_MISO_PIN | BOARD_SPI_MOSI_PIN;
+        io.Mode      = GPIO_MODE_AF_PP;
+        io.Pull      = GPIO_NOPULL;
+        io.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+        io.Alternate = BOARD_SPI_AF;
+        HAL_GPIO_Init(BOARD_SPI_PORT, &io);
+    }
 }
 
 void board_led_set(bool on)

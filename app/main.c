@@ -10,6 +10,7 @@
 
 #include "board.h"
 #include "clock.h"
+#include "spi_bus.h"
 #include "task_heartbeat.h"
 #include "uart_console.h"
 
@@ -25,6 +26,8 @@ int main(void)
     LOG_I("boot");
     LOG_I("SYSCLK=%lu src=%s", (unsigned long)HAL_RCC_GetSysClockFreq(), clock_source_name(src));
     LOG_I("FreeRTOS %s", tskKERNEL_VERSION_NUMBER);
+
+    (void)spi_bus_init();
 
     log_set_level(LOG_MOD_HB, LOG_LVL_DEBUG);     /* B1 toggles it back to info */
     heartbeat_start();
