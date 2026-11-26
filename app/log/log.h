@@ -39,7 +39,9 @@ typedef enum {
     X(LOG_MOD_PROTO, "proto") \
     X(LOG_MOD_HTTP, "http") \
     X(LOG_MOD_W25Q, "w25q") \
-    X(LOG_MOD_FS,   "fs")
+    X(LOG_MOD_FS,   "fs")   \
+    X(LOG_MOD_FSM,  "fsm")  \
+    X(LOG_MOD_SUP,  "sup")
 
 typedef enum {
 #define LOG_ENUM_ENTRY(id, name) id,

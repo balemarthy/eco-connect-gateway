@@ -55,7 +55,7 @@ w25q_status_t w25q_init(void)
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {   /* tRES1 = 3 us */
         vTaskDelay(1);
     } else {
-        HAL_Delay(1U);
+        board_delay_busy_ms(1U);           /* HAL tick may be masked before the scheduler */
     }
 
     c = W25Q_CMD_JEDEC_ID;

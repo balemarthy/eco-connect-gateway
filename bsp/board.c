@@ -80,6 +80,21 @@ void board_enc_int_enable(void)
     HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 }
 
+void board_delay_busy_ms(uint32_t ms)
+{
+    if ((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) == 0U || (DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0U) {
+        CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+        DWT->CYCCNT = 0U;
+        DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    }
+    uint32_t cycles_per_ms = SystemCoreClock / 1000U;
+    while (ms-- > 0U) {
+        uint32_t t0 = DWT->CYCCNT;
+        while ((DWT->CYCCNT - t0) < cycles_per_ms) {
+        }
+    }
+}
+
 void board_led_set(bool on)
 {
     HAL_GPIO_WritePin(BOARD_LD2_PORT, BOARD_LD2_PIN, on ? GPIO_PIN_SET : GPIO_PIN_RESET);

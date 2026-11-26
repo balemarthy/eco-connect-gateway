@@ -11,6 +11,9 @@
 TARGET  := eco-connect-gateway
 BUILD   := build
 
+# plain "make" builds the firmware, whatever rule comes first in this file
+.DEFAULT_GOAL := all
+
 PREFIX  ?= arm-none-eabi-
 CC      := $(PREFIX)gcc
 AS      := $(PREFIX)gcc -x assembler-with-cpp
@@ -38,6 +41,10 @@ ifeq ($(SENSOR),i2c)
 DEFS += -DSENSOR_USE_I2C=1
 endif
 
+# make WATCHDOG=0 : supervisor still reports missed tasks but never starts the IWDG
+WATCHDOG ?= 1
+DEFS += -DSUP_USE_IWDG=$(WATCHDOG)
+
 # ---------------------------------------------------------------- sources
 # Our code
 SRC_APP := \
@@ -46,6 +53,8 @@ SRC_APP := \
   app/net/net_init.c \
   app/sensor/sensor_task.c \
   app/core/app_task.c \
+  app/core/gateway_fsm.c \
+  app/core/supervisor.c \
   app/json/json_writer.c \
   app/json/json_parser.c \
   app/json/json_reading.c \
@@ -66,6 +75,7 @@ SRC_BSP := \
   bsp/clock.c \
   bsp/board.c \
   bsp/hal_timebase_tim.c \
+  bsp/iwdg.c \
   bsp/stm32f4xx_it.c
 
 SRC_DRV := \

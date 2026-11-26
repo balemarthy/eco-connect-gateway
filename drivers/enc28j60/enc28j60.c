@@ -71,7 +71,7 @@ static void enc_delay_ms(uint32_t ms)
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
         vTaskDelay(pdMS_TO_TICKS(ms) + 1U);
     } else {
-        HAL_Delay(ms + 1U);
+        board_delay_busy_ms(ms + 1U);      /* HAL tick may be masked before the scheduler */
     }
 }
 

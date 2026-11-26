@@ -14,6 +14,7 @@
 
 #include "ethernetif_enc28j60.h"
 #include "net_init.h"
+#include "supervisor.h"
 
 static struct netif enc_netif;
 static volatile bool stack_ready;
@@ -28,11 +29,13 @@ static void netif_status_changed(struct netif *n)
     } else {
         LOG_I("netif down");
     }
+    gw_post(net_is_up() ? GW_EV_LINK_UP : GW_EV_LINK_DOWN);
 }
 
 static void netif_link_changed(struct netif *n)
 {
     LOG_I("link %s", netif_is_link_up(n) ? "up" : "down");
+    gw_post(net_is_up() ? GW_EV_LINK_UP : GW_EV_LINK_DOWN);
 }
 
 /* Runs in the tcpip thread (core lock held) once it is up. */
@@ -60,8 +63,8 @@ static void tcpip_ready(void *arg)
     netif_set_status_callback(&enc_netif, netif_status_changed);
     netif_set_link_callback(&enc_netif, netif_link_changed);
     netif_set_default(&enc_netif);
+    netif_ok = true;                                 /* before netif_set_up: its callback reads it */
     netif_set_up(&enc_netif);
-    netif_ok = true;
 #if NET_USE_DHCP
     (void)dhcp_start(&enc_netif);
     LOG_I("DHCP started");

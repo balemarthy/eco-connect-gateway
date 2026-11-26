@@ -15,6 +15,7 @@
 #include "i2c_bus.h"
 #include "readings.h"
 #include "sensor.h"
+#include "supervisor.h"
 
 #define SENSOR_STACK_WORDS  384U
 #define SENSOR_PRIORITY     (tskIDLE_PRIORITY + 3U)
@@ -87,6 +88,7 @@ static TimerHandle_t tmr;
 static StaticTask_t task_tcb;
 static StackType_t  task_stack[SENSOR_STACK_WORDS];
 static TaskHandle_t task;
+static sup_id_t     sup_id = SUP_INVALID;
 
 static volatile uint32_t interval_ms = SENSOR_INTERVAL_DEFAULT_MS;
 static volatile uint16_t node_id = 1U;
@@ -119,15 +121,26 @@ static void sensor_task(void *arg)
           (init_st == SENSOR_OK) ? "" : " (init failed)");
     (void)xTimerStart(tmr, portMAX_DELAY);
 
+    uint32_t fail_run = 0U;
     for (;;) {
-        (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        /* wake at least once a second to check in, even with a 60 s interval */
+        uint32_t due = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000U));
+        sup_checkin(sup_id);
+        if (due == 0U) {
+            continue;
+        }
 
         int32_t v = 0;
         sensor_status_t st = src->read_centi_c(&v);
         if (st == SENSOR_OK) {
             last_good = v;
+            fail_run = 0U;
         } else {
             LOG_D("read failed (%d)", (int)st);
+            /* sensor-pull recovery: re-initialise the source every 5th failure in a row */
+            if ((++fail_run % 5U) == 0U && src->init() == SENSOR_OK) {
+                LOG_I("source %s re-initialised", src->name);
+            }
         }
         r.seq++;
         r.node         = node_id;
@@ -147,6 +160,7 @@ void sensor_start(void)
     tmr = xTimerCreateStatic("sample", pdMS_TO_TICKS(interval_ms), pdTRUE, NULL, sample_timer_cb, &tmr_buf);
     configASSERT(tmr != NULL);
 
+    sup_id = sup_register("sensor", 3000U);
     task = xTaskCreateStatic(sensor_task, "sensor", SENSOR_STACK_WORDS, NULL, SENSOR_PRIORITY,
                              task_stack, &task_tcb);
     configASSERT(task != NULL);

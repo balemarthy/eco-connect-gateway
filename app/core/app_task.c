@@ -17,12 +17,14 @@
 #include "json_reading.h"
 #include "sensor.h"
 #include "storage_task.h"
+#include "supervisor.h"
 
 #define APP_STACK_WORDS  512U
 #define APP_PRIORITY     (tskIDLE_PRIORITY + 3U)
 
 static StaticTask_t task_tcb;
 static StackType_t  task_stack[APP_STACK_WORDS];
+static sup_id_t     sup_id = SUP_INVALID;
 
 static reading_t latest;
 static bool      have_latest;
@@ -44,9 +46,12 @@ static void app_task(void *arg)
     char json[JSON_READING_MAX];
 
     for (;;) {
-        if (xQueueReceive(q, &r, portMAX_DELAY) != pdPASS) {
+        BaseType_t got = xQueueReceive(q, &r, pdMS_TO_TICKS(1000U));
+        sup_checkin(sup_id);
+        if (got != pdPASS) {
             continue;
         }
+        gw_post((r.status == READING_OK) ? GW_EV_READING_OK : GW_EV_READING_FAIL);
         taskENTER_CRITICAL();
         latest = r;
         have_latest = true;
@@ -71,6 +76,7 @@ static void app_task(void *arg)
 
 void app_start(void)
 {
+    sup_id = sup_register("app", 3000U);
     TaskHandle_t h = xTaskCreateStatic(app_task, "app", APP_STACK_WORDS, NULL, APP_PRIORITY,
                                        task_stack, &task_tcb);
     configASSERT(h != NULL);

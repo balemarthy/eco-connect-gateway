@@ -21,6 +21,7 @@
 #include "proto_task.h"
 #include "registry.h"
 #include "serial_protocol.h"
+#include "supervisor.h"
 #include "uart_link.h"
 
 #define PROTO_STACK_WORDS  768U
@@ -35,6 +36,7 @@ static proto_packet_t req;
 static proto_packet_t rsp;
 static uint8_t        tx_frame[PROTO_FRAME_MAX];
 static proto_stats_t  stats;
+static sup_id_t       sup_id = SUP_INVALID;
 
 static void error_packet(proto_packet_t *out, const char *msg)
 {
@@ -107,6 +109,9 @@ static void on_frame(void)
         return;                                    /* answers from the peer are not answered */
     }
     handle(&req, &rsp);
+    if (rsp.op == PROTO_OP_RSP && req.op == PROTO_OP_GET) {
+        gw_post(GW_EV_REPORT);                     /* a client got data */
+    }
     send_packet(&rsp);
 }
 
@@ -119,6 +124,7 @@ static void proto_task(void *arg)
     LOG_I("link ready on USART1 %lu 8N1", (unsigned long)UART_LINK_BAUD);
     for (;;) {
         size_t n = uart_link_read(chunk, sizeof chunk, 1000U);
+        sup_checkin(sup_id);
         for (size_t i = 0U; i < n; i++) {
             switch (proto_rx_feed(&rx, chunk[i])) {
             case PROTO_RX_FRAME:
@@ -149,6 +155,7 @@ void proto_start(void)
         LOG_E("USART1 init failed");
         return;
     }
+    sup_id = sup_register("proto", 3000U);
     TaskHandle_t h = xTaskCreateStatic(proto_task, "proto", PROTO_STACK_WORDS, NULL, PROTO_PRIORITY,
                                        task_stack, &task_tcb);
     configASSERT(h != NULL);

@@ -20,6 +20,7 @@
 #include "http_router.h"
 #include "http_server.h"
 #include "net_init.h"
+#include "supervisor.h"
 
 #define HTTP_STACK_WORDS        1024U
 #define HTTP_PRIORITY           (tskIDLE_PRIORITY + 2U)
@@ -32,6 +33,7 @@ static StackType_t  task_stack[HTTP_STACK_WORDS];
 static char req_buf[HTTP_REQUEST_MAX];
 static char body_buf[HTTP_RESPONSE_BODY_MAX];
 static char hdr_buf[HTTP_HEADER_MAX];
+static sup_id_t sup_id = SUP_INVALID;
 
 /* Reads until a full request is parsed, the buffer is full, or the peer stops. */
 static http_parse_t read_request(struct netconn *c, http_request_t *req, bool *got_any)
@@ -97,6 +99,9 @@ static void serve(struct netconn *c)
         (void)netconn_write(c, resp.body, resp.body_len, NETCONN_COPY);
     }
     if (pr == HTTP_PARSE_OK) {
+        if (resp.status == 200 && req.method == HTTP_GET) {
+            gw_post(GW_EV_REPORT);                   /* a client got data */
+        }
         LOG_I("%s %s %d", req.method_text, req.path, resp.status);
     } else {
         LOG_W("rejected request: %d", resp.status);
@@ -107,6 +112,7 @@ static void http_task(void *arg)
 {
     (void)arg;
     while (!net_stack_ready()) {
+        sup_checkin(sup_id);
         vTaskDelay(pdMS_TO_TICKS(100U));
     }
 
@@ -114,13 +120,19 @@ static void http_task(void *arg)
     if (listener == NULL || netconn_bind(listener, IP_ADDR_ANY, HTTP_PORT) != ERR_OK ||
         netconn_listen(listener) != ERR_OK) {
         LOG_E("cannot listen on :%u", (unsigned)HTTP_PORT);
-        vTaskSuspend(NULL);
+        for (;;) {                                   /* keep checking in: the rest still works */
+            sup_checkin(sup_id);
+            vTaskDelay(pdMS_TO_TICKS(1000U));
+        }
     }
+    netconn_set_recvtimeout(listener, 1000);         /* accept() returns every second */
     LOG_I("listening :%u", (unsigned)HTTP_PORT);
 
     for (;;) {
         struct netconn *c = NULL;
-        if (netconn_accept(listener, &c) == ERR_OK) {
+        err_t e = netconn_accept(listener, &c);
+        sup_checkin(sup_id);
+        if (e == ERR_OK) {
             serve(c);
             (void)netconn_close(c);
             (void)netconn_delete(c);
@@ -130,6 +142,7 @@ static void http_task(void *arg)
 
 void http_server_start(void)
 {
+    sup_id = sup_register("http", 8000U);
     TaskHandle_t h = xTaskCreateStatic(http_task, "http", HTTP_STACK_WORDS, NULL, HTTP_PRIORITY,
                                        task_stack, &task_tcb);
     configASSERT(h != NULL);

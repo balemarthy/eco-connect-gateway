@@ -24,6 +24,7 @@
 #include "board.h"
 #include "enc28j60.h"
 #include "ethernetif_enc28j60.h"
+#include "supervisor.h"
 
 #define NET_RX_STACK_WORDS  512U
 #define NET_RX_PRIORITY     (tskIDLE_PRIORITY + 5U)    /* above tcpip (4): drain the chip FIFO first */
@@ -103,11 +104,13 @@ static void rx_thread(void *arg)
     struct netif *netif = (struct netif *)arg;
     bool link = enc28j60_link_up();
 
+    sup_id_t sup_id = sup_register("net", 2000U);
     set_link(netif, link);
     (void)enc28j60_start(xTaskGetCurrentTaskHandle());
 
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(NET_RX_POLL_MS));
+        sup_checkin(sup_id);
 
         uint32_t ev = enc28j60_service();
         if ((ev & ENC_EVT_LINK) != 0U) {

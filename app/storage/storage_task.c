@@ -15,6 +15,7 @@
 #include "json_reading.h"
 #include "registry.h"
 #include "storage_task.h"
+#include "supervisor.h"
 #include "w25q.h"
 
 #define STORAGE_STACK_WORDS  768U
@@ -34,6 +35,7 @@ static bool  file_open;
 static uint32_t lines;
 static uint32_t unsynced;
 static uint32_t write_errors;
+static sup_id_t sup_id = SUP_INVALID;
 
 /* RAM tail: newest STORAGE_TAIL readings (ring), guarded by a critical section */
 static reading_t tail[STORAGE_TAIL];
@@ -101,6 +103,7 @@ static void rotate_if_needed(void)
 
 static bool mount(void)
 {
+    (void)w25q_init();                                 /* probe here, after the scheduler started */
     if (!w25q_present()) {
         return false;
     }
@@ -157,7 +160,9 @@ static void storage_task(void *arg)
     }
 
     for (;;) {
-        if (xQueueReceive(q, &r, portMAX_DELAY) != pdPASS) {
+        BaseType_t got = xQueueReceive(q, &r, pdMS_TO_TICKS(1000U));
+        sup_checkin(sup_id);
+        if (got != pdPASS) {
             continue;
         }
         tail_push(&r);
@@ -172,6 +177,7 @@ void storage_start(void)
     q = xQueueCreateStatic(STORAGE_QUEUE_DEPTH, sizeof(reading_t), q_storage, &q_ctrl);
     configASSERT(q != NULL);
     (void)registry_register(&history_entry);
+    sup_id = sup_register("storage", 30000U);        /* formatting a blank chip takes a while */
     TaskHandle_t h = xTaskCreateStatic(storage_task, "storage", STORAGE_STACK_WORDS, NULL, STORAGE_PRIORITY,
                                        task_stack, &task_tcb);
     configASSERT(h != NULL);

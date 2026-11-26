@@ -67,6 +67,10 @@
 void board_init(void);
 /* Locally administered MAC 02:EC:xx:xx:xx:xx, the low 4 bytes from the 96-bit device UID. */
 void board_mac_address(uint8_t mac[6]);
+/* Busy wait on the DWT cycle counter. Needs no interrupt, so it also works between
+   the first FreeRTOS call and vTaskStartScheduler(), where the kernel keeps BASEPRI
+   raised and the HAL tick (TIM11) cannot run: HAL_Delay() would never return there. */
+void board_delay_busy_ms(uint32_t ms);
 /* PC4 as EXTI4 falling edge with pull-up, NVIC on. */
 void board_enc_int_enable(void);
 void board_led_set(bool on);

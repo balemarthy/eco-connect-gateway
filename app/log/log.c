@@ -10,6 +10,7 @@
 #include "task.h"
 
 #include "log.h"
+#include "supervisor.h"
 #include "uart_console.h"
 
 #define LOG_TASK_STACK_WORDS  256U
@@ -35,6 +36,7 @@ static QueueHandle_t q;
 
 static StaticTask_t task_tcb;
 static StackType_t  task_stack[LOG_TASK_STACK_WORDS];
+static sup_id_t     sup_id = SUP_INVALID;
 
 static const char level_char[] = { '-', 'E', 'W', 'I', 'D' };
 
@@ -44,9 +46,10 @@ static void log_task(void *arg)
     static log_line_t line;    /* only this task touches it */
 
     for (;;) {
-        if (xQueueReceive(q, &line, portMAX_DELAY) == pdPASS) {
+        if (xQueueReceive(q, &line, pdMS_TO_TICKS(1000U)) == pdPASS) {
             console_write(line.text, line.len);
         }
+        sup_checkin(sup_id);
     }
 }
 
@@ -57,6 +60,7 @@ void log_init(void)
     }
     q = xQueueCreateStatic(LOG_QUEUE_DEPTH, sizeof(log_line_t), q_storage, &q_ctrl);
     configASSERT(q != NULL);
+    sup_id = sup_register("log", 3000U);
     TaskHandle_t h = xTaskCreateStatic(log_task, "log", LOG_TASK_STACK_WORDS, NULL, LOG_TASK_PRIORITY,
                                        task_stack, &task_tcb);
     configASSERT(h != NULL);

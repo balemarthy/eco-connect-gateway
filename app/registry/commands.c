@@ -18,6 +18,7 @@
 #include "net_init.h"
 #include "registry.h"
 #include "sensor.h"
+#include "supervisor.h"
 
 static const char *const level_names[] = { "none", "error", "warn", "info", "debug" };
 
@@ -82,13 +83,19 @@ static reg_status_t set_node(const char *v, void *ctx)
 }
 
 /* ---------------------------------------------------------------- log */
+/* {"log":{"default":"info","hb":"debug"}}: only modules away from the default are
+   listed, so the answer stays short enough for one serial packet. */
 static reg_status_t get_log(json_writer_t *w, void *ctx)
 {
     (void)ctx;
     jw_key(w, "log");
     jw_object_begin(w);
+    jw_kv_str(w, "default", level_names[LOG_DEFAULT_LEVEL]);
     for (unsigned m = 0; m < LOG_MOD_COUNT; m++) {
-        jw_kv_str(w, log_module_name((log_module_t)m), level_names[log_get_level((log_module_t)m)]);
+        log_level_t l = log_get_level((log_module_t)m);
+        if (l != LOG_DEFAULT_LEVEL) {
+            jw_kv_str(w, log_module_name((log_module_t)m), level_names[l]);
+        }
     }
     jw_object_end(w);
     return REG_OK;
@@ -135,6 +142,7 @@ static reg_status_t get_status(json_writer_t *w, void *ctx)
     jw_kv_uint(w, "readings", app_readings_count());
     jw_kv_uint(w, "dropped", sensor_dropped());
     jw_kv_uint(w, "log_dropped", log_dropped());
+    jw_kv_str(w, "state", gw_state_name(gw_state()));
     jw_kv_str(w, "sensor", sensor_source_name());
     jw_kv_bool(w, "link", net_link_up());
     jw_kv_str(w, "ip", ip);

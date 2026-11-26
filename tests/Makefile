@@ -24,7 +24,9 @@ SRC_test_registry := ../app/registry/registry.c ../app/json/json_writer.c
 SRC_test_http := ../app/http/http_router.c ../app/http/http_response.c ../app/registry/registry.c \
                  ../app/json/json_writer.c ../app/json/json_parser.c
 
-TESTS := test_json test_serial_protocol test_registry test_http
+SRC_test_fsm := ../app/core/gateway_fsm.c
+
+TESTS := test_json test_serial_protocol test_registry test_http test_fsm
 
 BINS := $(addprefix $(BUILD)/,$(addsuffix $(EXE),$(TESTS)))
 
