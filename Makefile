@@ -32,6 +32,7 @@ DEFS := -DSTM32F411xE -DUSE_HAL_DRIVER
 SRC_APP := \
   app/main.c \
   app/log/log.c \
+  app/net/net_init.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -68,9 +69,22 @@ SRC_RTOS := \
   $(RTOS_DIR)/portable/GCC/ARM_CM4F/port.c \
   $(RTOS_DIR)/portable/MemMang/heap_4.c
 
+LWIP_DIR := third_party/lwip
+SRC_LWIP := \
+  $(wildcard $(LWIP_DIR)/src/core/*.c) \
+  $(wildcard $(LWIP_DIR)/src/core/ipv4/*.c) \
+  $(wildcard $(LWIP_DIR)/src/api/*.c) \
+  $(LWIP_DIR)/src/netif/ethernet.c \
+  $(LWIP_DIR)/contrib/ports/freertos/sys_arch.c
+
+SRC_MW := \
+  middleware/lwip_port/port_misc.c
+
 INC := \
   -Iapp \
   -Iapp/log \
+  -Iapp/net \
+  -Imiddleware/lwip_port \
   -Ibsp \
   -Idrivers \
   -Idrivers/enc28j60 \
@@ -78,11 +92,13 @@ INC := \
   -Ithird_party/cmsis/Include \
   -Ithird_party/cmsis/Device/ST/STM32F4xx/Include \
   -I$(RTOS_DIR)/include \
-  -I$(RTOS_DIR)/portable/GCC/ARM_CM4F
+  -I$(RTOS_DIR)/portable/GCC/ARM_CM4F \
+  -I$(LWIP_DIR)/src/include \
+  -I$(LWIP_DIR)/contrib/ports/freertos/include
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
-SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_HAL) $(SRC_RTOS)
+SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP)
 
 # ---------------------------------------------------------------- flags
 OPT    := -Os -g3

@@ -32,7 +32,8 @@ typedef enum {
     X(LOG_MOD_MAIN, "main") \
     X(LOG_MOD_HB,   "hb")   \
     X(LOG_MOD_SPI,  "spi")  \
-    X(LOG_MOD_ENC,  "enc")
+    X(LOG_MOD_ENC,  "enc")  \
+    X(LOG_MOD_NET,  "net")
 
 typedef enum {
 #define LOG_ENUM_ENTRY(id, name) id,

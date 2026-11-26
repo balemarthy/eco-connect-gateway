@@ -17,6 +17,7 @@
 #include "board.h"
 #include "clock.h"
 #include "enc28j60.h"
+#include "net_init.h"
 #include "spi_bus.h"
 #include "task_heartbeat.h"
 #include "uart_console.h"
@@ -104,6 +105,7 @@ int main(void)
         configASSERT(h != NULL);
     }
 
+    net_init();
     heartbeat_start();
     vTaskStartScheduler();
 

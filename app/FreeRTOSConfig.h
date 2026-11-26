@@ -26,7 +26,8 @@ void vAssertCalled(const char *file, int line);
 #define configSTACK_DEPTH_TYPE                    uint32_t
 #define configMESSAGE_BUFFER_LENGTH_TYPE          size_t
 #define configUSE_NEWLIB_REENTRANT                0
-#define configENABLE_BACKWARD_COMPATIBILITY       0
+/* 1: the lwIP 2.2.0 FreeRTOS port (contrib sys_arch.c) still uses portTICK_RATE_MS */
+#define configENABLE_BACKWARD_COMPATIBILITY       1
 
 /* ---- features --------------------------------------------------------------- */
 #define configUSE_TASK_NOTIFICATIONS              1
