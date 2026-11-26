@@ -13,7 +13,7 @@
 #include "clock.h"
 #include "stm32f4xx_hal.h"
 
-static HAL_StatusTypeDef pll_start(uint32_t source, uint32_t pllm)
+static HAL_StatusTypeDef pll_start(uint32_t source, uint32_t m_div)
 {
     RCC_OscInitTypeDef osc = {0};
 
@@ -27,7 +27,7 @@ static HAL_StatusTypeDef pll_start(uint32_t source, uint32_t pllm)
     }
     osc.PLL.PLLState  = RCC_PLL_ON;
     osc.PLL.PLLSource = source;
-    osc.PLL.PLLM      = pllm;
+    osc.PLL.PLLM      = m_div;
     osc.PLL.PLLN      = 100U;
     osc.PLL.PLLP      = RCC_PLLP_DIV2;
     osc.PLL.PLLQ      = 4U;

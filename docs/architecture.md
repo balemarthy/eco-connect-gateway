@@ -52,7 +52,7 @@ Every task in the picture checks in with the supervisor (dashed lines are events
    20-byte `reading_t` into the readings queue (full: drop the oldest, count it).
 3. The app task keeps it as "latest", forwards a copy to the storage queue, posts
    `reading_ok/fail` to the state machine and logs it.
-4. `GET /temp` (HTTP task) and `GET temp` (serial) both call `registry_get("temp")`, which
+4. `GET /temp` (HTTP task) and `GET temp` (serial) each call `registry_get("temp")`, which
    copies "latest" under a short critical section and writes JSON into a static buffer.
 5. The storage task appends the JSON line to `READINGS.LOG` and keeps a RAM tail for `GET /log`.
 

@@ -38,4 +38,4 @@ scheduler started
 LD2 toggles every 500 ms, now from the task.
 
 Mentee checks: set `HB_STACK_WORDS` to 32 and confirm the `stack overflow: hb` line; put a
-breakpoint in `TIM1_TRG_COM_TIM11_IRQHandler` and in `SysTick_Handler` and see both fire.
+breakpoint in `TIM1_TRG_COM_TIM11_IRQHandler` and in `SysTick_Handler` and see each one fire.

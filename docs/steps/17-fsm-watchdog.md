@@ -24,7 +24,7 @@ still runs; we want "every task is alive", and a reset when one is not.
    raised, so the HAL tick (TIM11, priority 15) does not run and `HAL_Delay()` never
    returns. Steps 06-07 (ENC28J60 init in `main`) and 15-16 (W25Q probe in `main`) hang
    there on hardware. Now: the W25Q probe runs in the storage task, the ENC28J60 init has
-   been in the tcpip thread since step 09, and the pre-scheduler fallback in both drivers
+   been in the tcpip thread since step 09, and the pre-scheduler fallback in the two drivers
    is `board_delay_busy_ms()` (DWT cycle counter, no interrupt needed).
 2. Since step 11 the `test:` rule came first in the `Makefile`, so a bare `make` ran the
    host tests. `.DEFAULT_GOAL := all` fixes it (`make clean all` was always correct).

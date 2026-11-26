@@ -20,7 +20,7 @@
  *  - PKTIF is unreliable: EPKTCNT is polled. Every frame is freed with
  *    ECON2.PKTDEC, otherwise EPKTCNT saturates at 255 and reception stops.
  *  - TX can stall: ECON1.TXRST is pulsed before every transmission, TXIF or TXERIF
- *    both mean "done", and late collisions are read from TSV bit 29 (not ESTAT).
+ *    each means "done", and late collisions are read from TSV bit 29 (not ESTAT).
  *  - ERXST/ERXND are only written while RXEN is clear.
  *
  * All functions marked "locked" expect the caller to hold the SPI bus lock.

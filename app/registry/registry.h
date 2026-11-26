@@ -3,7 +3,7 @@
  *
  * One static table, filled once at start-up (before the scheduler), then only
  * read. The serial protocol (GET/SET packets) and the HTTP server (GET /temp,
- * POST /interval) both go through it, so a command behaves the same on every
+ * POST /interval) go through it, so a command behaves the same on every
  * interface. No malloc; results are JSON written into a caller buffer.
  *
  *   registry_get("interval", out)          -> {"interval_ms":2000}
