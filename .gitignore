@@ -1,0 +1,20 @@
+# build output
+build/
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+
+# host test binaries
+tests/build/
+*.exe
+
+# editor / OS noise
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
