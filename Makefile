@@ -3,6 +3,7 @@
 #   make            build build/eco-connect-gateway.{elf,hex,bin,map} and print the size
 #   make clean      remove build/
 #   make V=1        show full compiler command lines
+#   make test       build and run the host unit tests (needs a host gcc)
 #
 # The toolchain (arm-none-eabi-*) and make must be on PATH. On Windows use build.ps1,
 # which adds the STM32CubeIDE toolchain to PATH for that one call.
@@ -45,6 +46,9 @@ SRC_APP := \
   app/net/net_init.c \
   app/sensor/sensor_task.c \
   app/core/app_task.c \
+  app/json/json_writer.c \
+  app/json/json_parser.c \
+  app/json/json_reading.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -100,6 +104,7 @@ INC := \
   -Iapp/net \
   -Iapp/sensor \
   -Iapp/core \
+  -Iapp/json \
   -Imiddleware/lwip_port \
   -Ibsp \
   -Idrivers \
@@ -132,7 +137,12 @@ OBJ := $(patsubst %.c,$(BUILD)/%.o,$(SRC_C)) $(patsubst %.s,$(BUILD)/%.o,$(SRC_A
 DEP := $(OBJ:.o=.d)
 
 # ---------------------------------------------------------------- rules
-.PHONY: all clean size
+.PHONY: all clean size test
+
+# Host unit tests (host gcc, see tests/Makefile)
+HOSTCC ?= gcc
+test:
+	$(MAKE) -C tests HOSTCC=$(HOSTCC)
 
 all: $(BUILD)/$(TARGET).elf $(BUILD)/$(TARGET).hex $(BUILD)/$(TARGET).bin size
 

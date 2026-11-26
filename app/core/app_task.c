@@ -14,6 +14,7 @@
 #include "log.h"
 
 #include "app_task.h"
+#include "json_reading.h"
 #include "sensor.h"
 
 #define APP_STACK_WORDS  512U
@@ -39,6 +40,7 @@ static void app_task(void *arg)
     QueueHandle_t q = sensor_readings_queue();
     reading_t r;
     char t[16];
+    char json[JSON_READING_MAX];
 
     for (;;) {
         if (xQueueReceive(q, &r, portMAX_DELAY) != pdPASS) {
@@ -55,6 +57,10 @@ static void app_task(void *arg)
             LOG_I("seq=%lu node=%u t=%sC", (unsigned long)r.seq, (unsigned)r.node, t);
         } else {
             LOG_W("seq=%lu node=%u sensor error (last t=%sC)", (unsigned long)r.seq, (unsigned)r.node, t);
+        }
+        /* the JSON form that HTTP and the serial link will send: once at INFO, then DEBUG */
+        if (json_reading_write(json, sizeof json, &r) > 0U) {
+            log_write(LOG_TAG, (count == 1U) ? LOG_LVL_INFO : LOG_LVL_DEBUG, "json %s", json);
         }
     }
 }
