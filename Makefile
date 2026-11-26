@@ -27,6 +27,10 @@ MCU := -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard
 
 DEFS := -DSTM32F411xE -DUSE_HAL_DRIVER
 
+# make DHCP=1 : take the address from a DHCP server instead of the static one
+DHCP ?= 0
+DEFS += -DNET_USE_DHCP=$(DHCP)
+
 # ---------------------------------------------------------------- sources
 # Our code
 SRC_APP := \
@@ -78,7 +82,8 @@ SRC_LWIP := \
   $(LWIP_DIR)/contrib/ports/freertos/sys_arch.c
 
 SRC_MW := \
-  middleware/lwip_port/port_misc.c
+  middleware/lwip_port/port_misc.c \
+  middleware/lwip_port/ethernetif_enc28j60.c
 
 INC := \
   -Iapp \
