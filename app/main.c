@@ -11,6 +11,7 @@
 #include "app_task.h"
 #include "board.h"
 #include "clock.h"
+#include "commands.h"
 #include "net_init.h"
 #include "proto_task.h"
 #include "sensor.h"
@@ -31,6 +32,7 @@ int main(void)
     LOG_I("SYSCLK=%lu src=%s", (unsigned long)HAL_RCC_GetSysClockFreq(), clock_source_name(src));
     LOG_I("FreeRTOS %s", tskKERNEL_VERSION_NUMBER);
 
+    commands_init();                              /* GET-SET registry table */
     (void)spi_bus_init();
     net_init();                                   /* tcpip thread adds the ENC28J60 netif */
     sensor_start();                               /* sampling timer -> readings queue */

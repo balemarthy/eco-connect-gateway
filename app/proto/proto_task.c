@@ -2,10 +2,12 @@
  * Protocol task.
  *
  * Reads the link byte stream, feeds the frame decoder, decodes the inner
- * packet and answers with one frame per request. Requests handled here:
- *   PING          -> RSP S "pong"
- *   GET temp      -> RSP J {"node":..,"value":..,"timestamp":..,"seq":..}
- *   anything else -> ERR J {"error":"..."}
+ * packet and answers with one frame per request:
+ *   PING              -> RSP S "pong"
+ *   GET <key>         -> RSP J <registry result>     e.g. GET temp, GET interval
+ *   GET / GET help    -> RSP J {"keys":[...]}
+ *   SET <key> <value> -> RSP J <new value>           e.g. SET interval 5000
+ *   errors            -> ERR J {"error":"...","key":"..."}
  */
 #include <string.h>
 
@@ -15,10 +17,9 @@
 #define LOG_TAG LOG_MOD_PROTO
 #include "log.h"
 
-#include "app_task.h"
-#include "json_reading.h"
 #include "json_writer.h"
 #include "proto_task.h"
+#include "registry.h"
 #include "serial_protocol.h"
 #include "uart_link.h"
 
@@ -46,28 +47,39 @@ static void error_packet(proto_packet_t *out, const char *msg)
     (void)proto_packet_set(out, PROTO_OP_ERR, PROTO_T_JSON, (jw_finish(&w) > 0U) ? buf : "{}");
 }
 
-static void handle(const proto_packet_t *in, proto_packet_t *out)
+/* GET <key> | GET (list) | SET <key> <value> | PING -> registry */
+static void handle(proto_packet_t *in, proto_packet_t *out)
 {
+    static char result[PROTO_VALUE_MAX + 1U];
+    reg_status_t st;
+
     switch (in->op) {
     case PROTO_OP_PING:
         (void)proto_packet_set(out, PROTO_OP_RSP, PROTO_T_STR, "pong");
-        break;
+        return;
     case PROTO_OP_GET:
-        if (strcmp(in->value, "temp") == 0) {
-            reading_t r;
-            char json[JSON_READING_MAX];
-            if (app_latest(&r) && json_reading_write(json, sizeof json, &r) > 0U) {
-                (void)proto_packet_set(out, PROTO_OP_RSP, PROTO_T_JSON, json);
-            } else {
-                error_packet(out, "no reading yet");
-            }
+        if (in->len == 0U || strcmp(in->value, "help") == 0) {
+            st = registry_list(result, sizeof result, false);   /* help text does not fit in one packet */
         } else {
-            error_packet(out, "unknown key");
+            st = registry_get(in->value, result, sizeof result);
         }
         break;
+    case PROTO_OP_SET: {
+        char *sp = strchr(in->value, ' ');
+        if (sp == NULL) {
+            st = registry_set(in->value, NULL, result, sizeof result);
+        } else {
+            *sp = '\0';                              /* split "key value" in place */
+            st = registry_set(in->value, sp + 1, result, sizeof result);
+        }
+        break;
+    }
     default:
         error_packet(out, "unsupported op");
-        break;
+        return;
+    }
+    if (proto_packet_set(out, (st == REG_OK) ? PROTO_OP_RSP : PROTO_OP_ERR, PROTO_T_JSON, result) != PROTO_OK) {
+        error_packet(out, "result too long");
     }
 }
 

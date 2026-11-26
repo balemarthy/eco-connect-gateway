@@ -18,6 +18,8 @@
 
 #define JSON_READING_MAX  112U    /* widest case is 99 chars + NUL (see test_json.c) */
 
+/* Writes only the members (node, value, ...) into an already open object. */
+void   json_reading_members(json_writer_t *w, const reading_t *r);
 /* Writes the reading as one object value into an open writer. */
 void   json_reading_put(json_writer_t *w, const reading_t *r);
 /* Stand-alone object into buf; returns length or 0 if buf is too small. */

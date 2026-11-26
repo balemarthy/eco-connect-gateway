@@ -51,6 +51,8 @@ SRC_APP := \
   app/json/json_reading.c \
   app/proto/serial_protocol.c \
   app/proto/proto_task.c \
+  app/registry/registry.c \
+  app/registry/commands.c \
   app/rtos_hooks.c \
   app/task_heartbeat.c
 
@@ -109,6 +111,7 @@ INC := \
   -Iapp/core \
   -Iapp/json \
   -Iapp/proto \
+  -Iapp/registry \
   -Imiddleware/lwip_port \
   -Ibsp \
   -Idrivers \

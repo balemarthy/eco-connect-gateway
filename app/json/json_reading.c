@@ -1,8 +1,7 @@
 #include "json_reading.h"
 
-void json_reading_put(json_writer_t *w, const reading_t *r)
+void json_reading_members(json_writer_t *w, const reading_t *r)
 {
-    jw_object_begin(w);
     jw_kv_uint(w, "node", r->node);
     jw_kv_fixed2(w, "value", r->value_centi);
     jw_kv_uint(w, "timestamp", r->timestamp_ms);
@@ -10,6 +9,12 @@ void json_reading_put(json_writer_t *w, const reading_t *r)
     if (r->status != READING_OK) {
         jw_kv_str(w, "status", "sensor_error");
     }
+}
+
+void json_reading_put(json_writer_t *w, const reading_t *r)
+{
+    jw_object_begin(w);
+    json_reading_members(w, r);
     jw_object_end(w);
 }
 
