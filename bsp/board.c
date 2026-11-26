@@ -56,6 +56,18 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
     }
 }
 
+void board_mac_address(uint8_t mac[6])
+{
+    uint32_t h = HAL_GetUIDw0() ^ HAL_GetUIDw1() ^ HAL_GetUIDw2();
+
+    mac[0] = 0x02U;                 /* locally administered, unicast */
+    mac[1] = 0xECU;
+    mac[2] = (uint8_t)(h >> 24);
+    mac[3] = (uint8_t)(h >> 16);
+    mac[4] = (uint8_t)(h >> 8);
+    mac[5] = (uint8_t)h;
+}
+
 void board_led_set(bool on)
 {
     HAL_GPIO_WritePin(BOARD_LD2_PORT, BOARD_LD2_PIN, on ? GPIO_PIN_SET : GPIO_PIN_RESET);

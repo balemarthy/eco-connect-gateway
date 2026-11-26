@@ -10,6 +10,7 @@
 
 #include "board.h"
 #include "clock.h"
+#include "enc28j60.h"
 #include "spi_bus.h"
 #include "task_heartbeat.h"
 #include "uart_console.h"
@@ -28,6 +29,12 @@ int main(void)
     LOG_I("FreeRTOS %s", tskKERNEL_VERSION_NUMBER);
 
     (void)spi_bus_init();
+
+    uint8_t mac[6];
+    board_mac_address(mac);
+    if (enc28j60_init(mac) == ENC_OK) {
+        LOG_I("link %s", enc28j60_link_up() ? "up" : "down");
+    }
 
     log_set_level(LOG_MOD_HB, LOG_LVL_DEBUG);     /* B1 toggles it back to info */
     heartbeat_start();

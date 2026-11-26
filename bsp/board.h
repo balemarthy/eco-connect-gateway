@@ -49,6 +49,8 @@
 #define BOARD_SYSCLK_HZ       100000000U       /* HCLK 100 MHz, APB1 50 MHz, APB2 100 MHz */
 
 void board_init(void);
+/* Locally administered MAC 02:EC:xx:xx:xx:xx, the low 4 bytes from the 96-bit device UID. */
+void board_mac_address(uint8_t mac[6]);
 void board_led_set(bool on);
 void board_led_toggle(void);
 bool board_button_pressed(void);

@@ -45,7 +45,8 @@ SRC_BSP := \
 
 SRC_DRV := \
   drivers/uart_console.c \
-  drivers/spi_bus.c
+  drivers/spi_bus.c \
+  drivers/enc28j60/enc28j60.c
 
 SRC_ASM := bsp/startup_stm32f411retx.s
 
@@ -72,6 +73,7 @@ INC := \
   -Iapp/log \
   -Ibsp \
   -Idrivers \
+  -Idrivers/enc28j60 \
   -I$(HAL_DIR)/Inc \
   -Ithird_party/cmsis/Include \
   -Ithird_party/cmsis/Device/ST/STM32F4xx/Include \
