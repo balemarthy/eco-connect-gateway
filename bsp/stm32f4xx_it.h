@@ -7,5 +7,6 @@ void MemManage_Handler(void);
 void BusFault_Handler(void);
 void UsageFault_Handler(void);
 void DebugMon_Handler(void);
+void EXTI4_IRQHandler(void);
 
 #endif /* STM32F4XX_IT_H */

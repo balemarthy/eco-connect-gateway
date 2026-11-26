@@ -43,6 +43,7 @@
 
 /* ---- NVIC priorities (0 = highest). Any ISR that calls a FreeRTOS "FromISR"
  *      function must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (5). */
+#define BOARD_IRQ_PRIO_ENC_INT   6U
 #define BOARD_IRQ_PRIO_CONSOLE   7U
 
 /* ---- clocks ---------------------------------------------------------------- */
@@ -51,6 +52,8 @@
 void board_init(void);
 /* Locally administered MAC 02:EC:xx:xx:xx:xx, the low 4 bytes from the 96-bit device UID. */
 void board_mac_address(uint8_t mac[6]);
+/* PC4 as EXTI4 falling edge with pull-up, NVIC on. */
+void board_enc_int_enable(void);
 void board_led_set(bool on);
 void board_led_toggle(void);
 bool board_button_pressed(void);

@@ -68,6 +68,18 @@ void board_mac_address(uint8_t mac[6])
     mac[5] = (uint8_t)h;
 }
 
+void board_enc_int_enable(void)
+{
+    GPIO_InitTypeDef io = {0};
+    io.Pin  = BOARD_ENC_INT_PIN;
+    io.Mode = GPIO_MODE_IT_FALLING;                /* INT is active low */
+    io.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(BOARD_ENC_INT_PORT, &io);
+    __HAL_GPIO_EXTI_CLEAR_IT(BOARD_ENC_INT_PIN);
+    HAL_NVIC_SetPriority(EXTI4_IRQn, BOARD_IRQ_PRIO_ENC_INT, 0U);
+    HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+}
+
 void board_led_set(bool on)
 {
     HAL_GPIO_WritePin(BOARD_LD2_PORT, BOARD_LD2_PIN, on ? GPIO_PIN_SET : GPIO_PIN_RESET);

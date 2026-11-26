@@ -1,7 +1,7 @@
 /*
- * ENC28J60 driver - register layer.
+ * ENC28J60 driver.
  *
- * Rules from the data sheet and errata that this file enforces:
+ * Register layer - rules from the data sheet and errata enforced here:
  *  - Banked registers: select the bank in ECON1.BSEL before access. 0x1B..0x1F
  *    (EIE, EIR, ESTAT, ECON2, ECON1) are in every bank and never need a switch.
  *    The current bank is cached; a wrong bank silently hits another register.
@@ -10,6 +10,18 @@
  *  - After a system reset command (SRC) CLKRDY is not cleared, so polling it
  *    proves nothing: wait at least 1 ms, then check CLKRDY.
  *  - PHY registers are reached through MIREGADR/MICMD/MISTAT; poll MISTAT.BUSY.
+ *
+ * Packet layer - buffer errata:
+ *  - RX FIFO at 0000h (ERXST = 0), TX above it. Writing ERXST/ERXND can load
+ *    0000h into the internal write pointer, which is harmless only with RX at 0.
+ *  - ERXRDPT must be odd: if the next packet pointer equals ERXST use ERXND,
+ *    else next - 1. ERXND is odd and the FIFO does not wrap past 1FFFh.
+ *  - ERXRDPT is written L then H; only the H write latches.
+ *  - PKTIF is unreliable: EPKTCNT is polled. Every frame is freed with
+ *    ECON2.PKTDEC, otherwise EPKTCNT saturates at 255 and reception stops.
+ *  - TX can stall: ECON1.TXRST is pulsed before every transmission, TXIF or TXERIF
+ *    both mean "done", and late collisions are read from TSV bit 29 (not ESTAT).
+ *  - ERXST/ERXND are only written while RXEN is clear.
  *
  * All functions marked "locked" expect the caller to hold the SPI bus lock.
  */
@@ -26,11 +38,16 @@
 #include "enc28j60_regs.h"
 #include "spi_bus.h"
 
-#define ENC_LOCK_TIMEOUT_MS   50U
 #define ENC_RESET_WAIT_MS     2U        /* errata: >= 1 ms after SRC */
 #define ENC_CLKRDY_TIMEOUT_MS 10U
 #define ENC_MII_TIMEOUT_MS    5U
-#define ENC_MAX_FRAME         1518U
+#define ENC_TX_TIMEOUT_MS     20U       /* 1518 bytes = 1.2 ms on the wire + back-off */
+#define ENC_TX_RETRIES        3U        /* late-collision retries */
+
+/* 8 KB buffer: RX 0000h-19FFh (6.5 KB), TX 1A00h-1FFFh (1.5 KB) */
+#define RX_START   0x0000U
+#define RX_END     0x19FFU              /* odd, as the ERXRDPT rule needs */
+#define TX_START   0x1A00U              /* even; control byte + 1518 + 7-byte TSV fits */
 
 static const spi_device_t enc_dev = {
     .name    = "enc28j60",
@@ -38,9 +55,14 @@ static const spi_device_t enc_dev = {
     .cs_pin  = BOARD_ENC_CS_PIN,
 };
 
-static uint8_t cur_bank = 0xFFU;        /* unknown until the first select */
-static uint8_t revision;
-static bool    spi_failed;
+static uint8_t  cur_bank = 0xFFU;       /* unknown until the first select */
+static uint8_t  revision;
+static bool     spi_failed;
+static uint16_t next_packet;            /* where the next RX header starts */
+static uint16_t rx_remaining;           /* frame bytes not yet read in this rx_begin/rx_end */
+static uint16_t tx_len;                 /* frame bytes written since tx_begin */
+static enc_stats_t stats;
+static TaskHandle_t volatile irq_task;
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -165,6 +187,34 @@ static bool enc_phy_write(uint8_t phy_reg, uint16_t val)
     return mii_wait();
 }
 
+/* locked: read buffer memory from ERDPT on (auto-increment wraps ERXND -> ERXST) */
+static void buf_read(uint8_t *dst, uint16_t n)
+{
+    if (n == 0U) {
+        return;
+    }
+    uint8_t op = ENC_OP_RBM;
+    spi_dev_select(&enc_dev);
+    if (spi_bus_transfer(&op, NULL, 1U) != SPI_OK || spi_bus_transfer(NULL, dst, n) != SPI_OK) {
+        spi_failed = true;
+    }
+    spi_dev_deselect(&enc_dev);
+}
+
+/* locked: write buffer memory from EWRPT on */
+static void buf_write(const uint8_t *src, uint16_t n)
+{
+    if (n == 0U) {
+        return;
+    }
+    uint8_t op = ENC_OP_WBM;
+    spi_dev_select(&enc_dev);
+    if (spi_bus_transfer(&op, NULL, 1U) != SPI_OK || spi_bus_transfer(src, NULL, n) != SPI_OK) {
+        spi_failed = true;
+    }
+    spi_dev_deselect(&enc_dev);
+}
+
 /* ---------------------------------------------------------------- reset */
 
 /* locked */
@@ -192,7 +242,18 @@ static void hard_reset(void)
     enc_delay_ms(1U);                       /* oscillator start-up ~300 us */
 }
 
-/* ---------------------------------------------------------------- MAC / PHY set-up */
+/* ---------------------------------------------------------------- set-up */
+
+/* locked. RXEN must be clear. */
+static void rx_buffer_init(void)
+{
+    next_packet = RX_START;
+    enc_reg_write16(ERXSTL, RX_START);
+    enc_reg_write16(ERXNDL, RX_END);
+    enc_reg_write16(ERXRDPTL, RX_END);      /* odd: NPP == ERXST case -> ERXND */
+    enc_reg_write16(ERDPTL, RX_START);
+    enc_reg_write16(ETXSTL, TX_START);
+}
 
 /* locked. Half duplex: the safe default when the link partner auto-negotiates
    (the ENC28J60 PHY does not auto-negotiate). */
@@ -200,6 +261,10 @@ static enc_status_t mac_phy_setup(const uint8_t mac[6])
 {
     enc_bit_clear(ECON1, ECON1_RXEN);            /* receiver off while configuring */
     enc_bit_set(ECON2, ECON2_AUTOINC);           /* buffer pointers auto-increment (reset default) */
+
+    rx_buffer_init();
+    /* unicast to our MAC + broadcast, drop frames with a bad CRC */
+    enc_reg_write(ERXFCON, ERXFCON_UCEN | ERXFCON_CRCEN | ERXFCON_BCEN);
 
     enc_reg_write(MACON1, MACON1_MARXEN);
     enc_reg_write(MACON3, MACON3_PADCFG0 | MACON3_TXCRCEN | MACON3_FRMLNEN);
@@ -226,7 +291,27 @@ static enc_status_t mac_phy_setup(const uint8_t mac[6])
     return ENC_OK;
 }
 
-/* ---------------------------------------------------------------- public */
+/* locked: recover from a corrupt RX header (bad next pointer). */
+static void rx_reset(void)
+{
+    enc_bit_clear(ECON1, ECON1_RXEN);
+    enc_bit_set(ECON1, ECON1_RXRST);
+    enc_bit_clear(ECON1, ECON1_RXRST);
+    rx_buffer_init();
+    enc_bit_clear(EIR, EIR_RXERIF);
+    enc_bit_set(ECON1, ECON1_RXEN);
+    stats.rx_resets++;
+}
+
+/* locked: free the current frame (odd ERXRDPT rule, then PKTDEC). */
+static void rx_free(void)
+{
+    uint16_t rdpt = (next_packet == RX_START) ? RX_END : (uint16_t)(next_packet - 1U);
+    enc_reg_write16(ERXRDPTL, rdpt);
+    enc_bit_set(ECON2, ECON2_PKTDEC);
+}
+
+/* ---------------------------------------------------------------- public: control */
 
 enc_status_t enc28j60_init(const uint8_t mac[6])
 {
@@ -274,6 +359,25 @@ enc_status_t enc28j60_init(const uint8_t mac[6])
     return ENC_OK;
 }
 
+enc_status_t enc28j60_start(TaskHandle_t notify_task)
+{
+    if (revision == 0U) {
+        return ENC_ERR_NO_CHIP;
+    }
+    irq_task = notify_task;
+    if (spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+        return ENC_ERR_SPI;
+    }
+    (void)enc_phy_write(PHIE, PHIE_PGEIE | PHIE_PLNKIE);              /* link change -> LINKIF */
+    enc_bit_clear(EIR, EIR_PKTIF | EIR_LINKIF | EIR_TXIF | EIR_TXERIF | EIR_RXERIF);
+    enc_reg_write(EIE, EIE_INTIE | EIE_PKTIE | EIE_LINKIE | EIE_RXERIE);
+    enc_bit_set(ECON1, ECON1_RXEN);
+    spi_bus_unlock();
+
+    board_enc_int_enable();
+    return ENC_OK;
+}
+
 uint8_t enc28j60_revision(void)
 {
     return revision;
@@ -298,4 +402,228 @@ bool enc28j60_link_up(void)
     uint16_t st2 = enc_phy_read(PHSTAT2);
     spi_bus_unlock();
     return (st2 & PHSTAT2_LSTAT) != 0U;
+}
+
+uint32_t enc28j60_service(void)
+{
+    uint32_t events = 0U;
+
+    if (revision == 0U || spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+        return 0U;
+    }
+    /* INTIE off while we look, back on at the end: if anything is still pending the
+       INT pin goes high and low again, which gives the EXTI a fresh falling edge. */
+    enc_bit_clear(EIE, EIE_INTIE);
+    uint8_t eir = enc_reg_read(EIR);
+    if ((eir & EIR_LINKIF) != 0U) {
+        (void)enc_phy_read(PHIR);                 /* reading PHIR clears LINKIF */
+        events |= ENC_EVT_LINK;
+    }
+    if ((eir & EIR_RXERIF) != 0U) {               /* FIFO full or EPKTCNT at 255 */
+        enc_bit_clear(EIR, EIR_RXERIF);
+        stats.rx_overflows++;
+        events |= ENC_EVT_RX_ERR;
+    }
+    if (enc_reg_read(EPKTCNT) != 0U) {            /* PKTIF is unreliable: use the count */
+        events |= ENC_EVT_RX;
+    }
+    enc_bit_set(EIE, EIE_INTIE);
+    spi_bus_unlock();
+    return events;
+}
+
+void enc28j60_get_stats(enc_stats_t *out)
+{
+    *out = stats;
+}
+
+void enc28j60_int_isr(void)
+{
+    BaseType_t woken = pdFALSE;
+    TaskHandle_t t = irq_task;
+
+    stats.irqs++;
+    if (t != NULL) {
+        vTaskNotifyGiveFromISR(t, &woken);
+    }
+    portYIELD_FROM_ISR(woken);
+}
+
+/* ---------------------------------------------------------------- public: receive */
+
+enc_status_t enc28j60_rx_begin(uint16_t *len)
+{
+    if (revision == 0U) {
+        return ENC_ERR_NO_CHIP;
+    }
+    if (spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+        return ENC_ERR_SPI;
+    }
+    if (enc_reg_read(EPKTCNT) == 0U) {
+        spi_bus_unlock();
+        return ENC_ERR_EMPTY;
+    }
+
+    uint8_t hdr[6];
+    enc_reg_write16(ERDPTL, next_packet);
+    buf_read(hdr, sizeof hdr);
+    uint16_t npp   = (uint16_t)(hdr[0] | ((uint16_t)hdr[1] << 8));
+    uint32_t rsv   = (uint32_t)hdr[2] | ((uint32_t)hdr[3] << 8) | ((uint32_t)hdr[4] << 16) | ((uint32_t)hdr[5] << 24);
+    uint16_t count = (uint16_t)(rsv & 0xFFFFU);           /* includes the 4-byte CRC */
+
+    if (npp > RX_END || (npp & 1U) != 0U) {
+        rx_reset();                                       /* header is garbage: start over */
+        spi_bus_unlock();
+        return ENC_ERR_RX;
+    }
+    next_packet = npp;
+
+    if ((rsv & RSV_RXOK) == 0U || count < 18U || count > ENC_MAX_FRAME + 4U) {
+        stats.rx_dropped++;
+        rx_free();
+        spi_bus_unlock();
+        return ENC_ERR_RX;
+    }
+    rx_remaining = (uint16_t)(count - 4U);
+    *len = rx_remaining;
+    return ENC_OK;                                        /* bus stays locked until rx_end */
+}
+
+void enc28j60_rx_read(uint8_t *dst, uint16_t n)
+{
+    if (n > rx_remaining) {
+        n = rx_remaining;
+    }
+    buf_read(dst, n);
+    rx_remaining = (uint16_t)(rx_remaining - n);
+}
+
+void enc28j60_rx_end(void)
+{
+    rx_free();
+    rx_remaining = 0U;
+    stats.rx_frames++;
+    spi_bus_unlock();
+}
+
+uint16_t enc28j60_receive(uint8_t *buf, uint16_t size)
+{
+    uint16_t len = 0U;
+    if (enc28j60_rx_begin(&len) != ENC_OK) {
+        return 0U;
+    }
+    if (len > size) {
+        stats.rx_dropped++;
+        len = 0U;
+    } else {
+        enc28j60_rx_read(buf, len);
+    }
+    enc28j60_rx_end();
+    return len;
+}
+
+/* ---------------------------------------------------------------- public: transmit */
+
+enc_status_t enc28j60_tx_begin(void)
+{
+    if (revision == 0U) {
+        return ENC_ERR_NO_CHIP;
+    }
+    if (spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+        return ENC_ERR_SPI;
+    }
+    spi_failed = false;
+    tx_len = 0U;
+    enc_reg_write16(EWRPTL, TX_START);
+    uint8_t control = 0x00U;                     /* use the MACON3 settings for this frame */
+    buf_write(&control, 1U);
+    return ENC_OK;                               /* bus stays locked until tx_end */
+}
+
+void enc28j60_tx_write(const uint8_t *src, uint16_t n)
+{
+    if ((uint32_t)tx_len + n > ENC_MAX_FRAME - 4U) {     /* the MAC appends the CRC */
+        spi_failed = true;
+        return;
+    }
+    buf_write(src, n);
+    tx_len = (uint16_t)(tx_len + n);
+}
+
+/* locked: one transmission attempt; returns the 7-byte TSV in tsv[] */
+static enc_status_t tx_once(uint16_t tx_end, uint8_t tsv[7])
+{
+    /* errata: reset the TX logic before every transmission */
+    enc_bit_set(ECON1, ECON1_TXRST);
+    enc_bit_clear(ECON1, ECON1_TXRST);
+    enc_bit_clear(EIR, EIR_TXIF | EIR_TXERIF);
+
+    enc_reg_write16(ETXSTL, TX_START);
+    enc_reg_write16(ETXNDL, tx_end);
+    enc_bit_set(ECON1, ECON1_TXRTS);
+
+    uint32_t t0 = HAL_GetTick();
+    enc_status_t st = ENC_OK;
+    while ((enc_reg_read(EIR) & (EIR_TXIF | EIR_TXERIF)) == 0U) {   /* either flag = done */
+        if (HAL_GetTick() - t0 > ENC_TX_TIMEOUT_MS) {
+            st = ENC_ERR_TIMEOUT;
+            break;
+        }
+    }
+    enc_bit_clear(ECON1, ECON1_TXRTS);
+
+    enc_reg_write16(ERDPTL, (uint16_t)(tx_end + 1U));                /* TSV follows ETXND */
+    buf_read(tsv, 7U);
+    return st;
+}
+
+enc_status_t enc28j60_tx_end(void)
+{
+    enc_status_t st = ENC_OK;
+
+    if (spi_failed || tx_len < 14U) {
+        st = ENC_ERR_PARAM;
+    } else {
+        uint16_t tx_end = (uint16_t)(TX_START + tx_len);    /* control byte + tx_len bytes */
+        for (unsigned attempt = 0U; attempt <= ENC_TX_RETRIES; attempt++) {
+            uint8_t tsv[7] = { 0 };
+            st = tx_once(tx_end, tsv);
+            uint8_t estat = enc_reg_read(ESTAT);
+            uint64_t v = 0U;
+            for (int i = 6; i >= 0; i--) {
+                v = (v << 8) | tsv[i];
+            }
+            if (st == ENC_OK && (estat & ESTAT_TXABRT) == 0U && (v & TSV_DONE_OK) != 0U) {
+                break;                                      /* sent */
+            }
+            if ((v & TSV_LATE_COLLISION) != 0U && attempt < ENC_TX_RETRIES) {
+                stats.tx_retries++;                         /* errata: retry on late collision */
+                continue;
+            }
+            if ((v & TSV_EXCESSIVE_COLLISION) != 0U) {
+                stats.tx_collisions++;
+            }
+            if (st == ENC_OK) {
+                st = ENC_ERR_TX;
+            }
+            break;
+        }
+    }
+    if (st == ENC_OK) {
+        stats.tx_frames++;
+    } else {
+        stats.tx_errors++;
+    }
+    spi_bus_unlock();
+    return st;
+}
+
+enc_status_t enc28j60_send(const uint8_t *frame, uint16_t len)
+{
+    enc_status_t st = enc28j60_tx_begin();
+    if (st != ENC_OK) {
+        return st;
+    }
+    enc28j60_tx_write(frame, len);
+    return enc28j60_tx_end();
 }

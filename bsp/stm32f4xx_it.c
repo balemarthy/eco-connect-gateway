@@ -8,6 +8,9 @@
 #include "stm32f4xx_hal.h"
 #include "stm32f4xx_it.h"
 
+#include "board.h"
+#include "enc28j60.h"
+
 void NMI_Handler(void)
 {
     for (;;) {
@@ -41,4 +44,13 @@ void UsageFault_Handler(void)
 
 void DebugMon_Handler(void)
 {
+}
+
+/* ENC28J60 INT (PC4, falling edge): only wakes the network task. */
+void EXTI4_IRQHandler(void)
+{
+    if (__HAL_GPIO_EXTI_GET_IT(BOARD_ENC_INT_PIN) != 0U) {
+        __HAL_GPIO_EXTI_CLEAR_IT(BOARD_ENC_INT_PIN);
+        enc28j60_int_isr();
+    }
 }
