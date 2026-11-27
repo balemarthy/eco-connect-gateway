@@ -25,11 +25,23 @@ build it, then move on.
 ```
 .\build.ps1 clean all          # Windows: adds the CubeIDE toolchain to PATH for this call
 make clean all                 # toolchain already on PATH
-make test                      # host unit tests (JSON, serial protocol, registry, HTTP, FSM)
+make test                      # host unit tests (JSON, serial protocol, registry, HTTP, FSM, OTA)
 ```
 Options (always with `clean` when you change one): `DHCP=1`, `SENSOR=i2c`, `WATCHDOG=0`.
 Output: `build/eco-connect-gateway.elf/.hex/.bin/.map`. Flash with STM32CubeProgrammer or
 drag the `.bin` onto the NUCLEO drive.
+
+### Optional demos (`make DEMO=...`, `.\build.ps1 -Demo ...`)
+One extra task on top of the gateway, chosen at build time; settings in `app/config/app_config.h`,
+notes in `docs/demos/` (index `docs/demos/README.md`). `DEMO=none` (default) builds exactly the
+firmware above. Demo output goes to `build/demo-<name>/`.
+
+| DEMO | What |
+|---|---|
+| `tcp_echo` | echo server on TCP :7 (netconn) |
+| `mqtt` | publishes the reading JSON to `eco/<node>/temp` with coreMQTT (`third_party/coreMQTT`, MIT) |
+| `plusio` | FreeRTOS+IO style `open/read/write/ioctl` adapter over our drivers (skeleton) |
+| `ota` | image download with HTTP Range into a RAM store, size + CRC32 check (`SET ota ...`, `POST /ota`) |
 
 ## Interfaces
 
