@@ -35,7 +35,12 @@ SRC_test_ota_http := ../app/ota/ota_http_msg.c ../app/http/http_router.c ../app/
                      ../app/registry/registry.c ../app/json/json_writer.c ../app/json/json_parser.c
 DEFS_test_ota_http := -DAPP_DEMO=1 -DAPP_DEMO_OTA=1
 
-TESTS := test_json test_serial_protocol test_registry test_http test_fsm test_ota test_ota_http
+# IO layer core + transfer modes on a test board table, FreeRTOS stand-ins in stubs/
+SRC_test_io := ../app/io/io_core.c ../app/io/io_mode_polled.c ../app/io/io_mode_circ_buf.c \
+               ../app/io/io_mode_char_queue.c ../app/io/io_mode_zero_copy.c stubs/freertos_stub.c
+DEFS_test_io := -Istubs -I../app/io
+
+TESTS := test_json test_serial_protocol test_registry test_http test_fsm test_ota test_ota_http test_io
 
 BINS := $(addprefix $(BUILD)/,$(addsuffix $(EXE),$(TESTS)))
 
