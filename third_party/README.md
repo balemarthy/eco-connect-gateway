@@ -11,8 +11,10 @@ licence files and headers. Project changes never go in this folder: configuratio
 | `freertos/` | FreeRTOS-Kernel (core, GCC/ARM_CM4F port, heap_4) | V11.1.0 | MIT | step 03 |
 | `lwip/` | lwIP TCP/IP stack (`src/` + FreeRTOS `sys_arch` from contrib) | 2.2.0 | BSD-3-Clause | step 08 |
 | `fatfs/` | FatFs generic FAT file system module | R0.16 | FatFs licence (BSD-style, 1 clause) | step 16 |
+| `coreMQTT/` | coreMQTT MQTT 3.1.1 client (`source/` + LICENSE, README, CHANGELOG, manifest) | v2.3.1+ (main-branch snapshot after v2.3.1) | MIT | ext-demos; linked only by `make DEMO=mqtt` |
 
 Only the parts that the build needs are copied. FatFs: the template `ffconf.h` and
 `diskio.c` are not copied; ours are in `middleware/fatfs_port/` (an `ffconf.h` next to `ff.h`
 would be picked first by `#include "ffconf.h"`). The table is the single place to look up
-versions when you update a component.
+versions when you update a component. coreMQTT: its configuration header `core_mqtt_config.h`
+is in `app/mqtt/`; `source/include/stdbool.readme` / `stdint.readme` and the tests are not copied.

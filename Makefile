@@ -51,7 +51,7 @@ DEFS += -DSUP_USE_IWDG=$(WATCHDOG)
 # DEMO=none (default) adds no define, no source and no include path: the firmware is the plain gateway.
 # Each demo builds into its own folder (build/demo-<name>/), so switching never mixes objects.
 DEMO ?= none
-DEMOS := none tcp_echo
+DEMOS := none tcp_echo mqtt
 ifeq ($(filter $(DEMO),$(DEMOS)),)
 $(error DEMO=$(DEMO) is not one of: $(DEMOS))
 endif
@@ -175,6 +175,17 @@ DEFS     += -DAPP_DEMO_TCP_ECHO=1
 SRC_DEMO += app/demos/tcp_echo.c
 endif
 
+# DEMO=mqtt : coreMQTT client over an lwIP netconn, publishes the latest reading JSON
+MQTT_DIR := third_party/coreMQTT
+ifeq ($(DEMO),mqtt)
+DEFS        += -DAPP_DEMO_MQTT=1
+SRC_DEMO    += app/mqtt/mqtt_demo.c app/mqtt/mqtt_transport_lwip.c
+SRC_DEMO_3P += $(MQTT_DIR)/source/core_mqtt.c \
+               $(MQTT_DIR)/source/core_mqtt_serializer.c \
+               $(MQTT_DIR)/source/core_mqtt_state.c
+INC         += -Iapp/mqtt -I$(MQTT_DIR)/source/include -I$(MQTT_DIR)/source/interface
+endif
+
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
 SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP) $(SRC_FATFS) \
@@ -209,6 +220,10 @@ $(BUILD)/%.o: %.c Makefile
 	@echo "CC  $<"
 	@mkdir -p $(dir $@)
 	$(Q)$(CC) $(CFLAGS) -c $< -o $@
+
+# coreMQTT checks its parameters with assert(); with NDEBUG those become no-ops instead of
+# pulling newlib's __assert_func + fprintf into the image (the functions still return errors).
+$(BUILD)/$(MQTT_DIR)/%.o: CFLAGS += -DNDEBUG
 
 $(BUILD)/%.o: %.s Makefile
 	@echo "AS  $<"
