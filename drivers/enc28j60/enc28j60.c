@@ -36,7 +36,8 @@
 #include "board.h"
 #include "enc28j60.h"
 #include "enc28j60_regs.h"
-#include "spi_bus.h"
+#include "io.h"
+#include "io_board.h"
 
 #define ENC_RESET_WAIT_MS     2U        /* errata: >= 1 ms after SRC */
 #define ENC_CLKRDY_TIMEOUT_MS 10U
@@ -49,11 +50,7 @@
 #define RX_END     0x19FFU              /* odd, as the ERXRDPT rule needs */
 #define TX_START   0x1A00U              /* even; control byte + 1518 + 7-byte TSV fits */
 
-static const spi_device_t enc_dev = {
-    .name    = "enc28j60",
-    .cs_port = BOARD_ENC_CS_PORT,
-    .cs_pin  = BOARD_ENC_CS_PIN,
-};
+static io_handle_t spi;                  /* "/SPI2/", shared with the W25Q (bus mutex) */
 
 static uint8_t  cur_bank = 0xFFU;       /* unknown until the first select */
 static uint8_t  revision;
@@ -75,13 +72,38 @@ static void enc_delay_ms(uint32_t ms)
     }
 }
 
-static void cycle(const uint8_t *tx, uint8_t *rx, size_t len)
+/* bus mutex: held from the first to the last SPI cycle of one public call */
+static bool bus_lock(void)
 {
-    spi_dev_select(&enc_dev);
-    if (spi_bus_transfer(tx, rx, len) != SPI_OK) {
+    return spi != NULL && io_ioctl(spi, IO_IOCTL_OBTAIN_WRITE_MUTEX, IO_VAL(ENC_LOCK_TIMEOUT_MS)) == IO_OK;
+}
+
+static void bus_unlock(void)
+{
+    (void)io_ioctl(spi, IO_IOCTL_RELEASE_WRITE_MUTEX, NULL);
+}
+
+static void cs_low(void)
+{
+    if (io_ioctl(spi, IO_IOCTL_SPI_SELECT, IO_VAL(IO_SPI2_CS_ENC28J60)) != IO_OK) {
         spi_failed = true;
     }
-    spi_dev_deselect(&enc_dev);
+}
+
+static void cs_high(void)
+{
+    (void)io_ioctl(spi, IO_IOCTL_SPI_DESELECT, NULL);
+}
+
+/* locked: one CS cycle, full duplex */
+static void cycle(const uint8_t *tx, uint8_t *rx, size_t len)
+{
+    io_spi_xfer_t x = { tx, rx, len };
+    cs_low();
+    if (io_ioctl(spi, IO_IOCTL_SPI_TRANSFER, &x) != IO_OK) {
+        spi_failed = true;
+    }
+    cs_high();
 }
 
 /* locked */
@@ -194,11 +216,11 @@ static void buf_read(uint8_t *dst, uint16_t n)
         return;
     }
     uint8_t op = ENC_OP_RBM;
-    spi_dev_select(&enc_dev);
-    if (spi_bus_transfer(&op, NULL, 1U) != SPI_OK || spi_bus_transfer(NULL, dst, n) != SPI_OK) {
+    cs_low();
+    if (io_write(spi, &op, 1U) != 1U || io_read(spi, dst, n) != n) {
         spi_failed = true;
     }
-    spi_dev_deselect(&enc_dev);
+    cs_high();
 }
 
 /* locked: write buffer memory from EWRPT on */
@@ -208,11 +230,11 @@ static void buf_write(const uint8_t *src, uint16_t n)
         return;
     }
     uint8_t op = ENC_OP_WBM;
-    spi_dev_select(&enc_dev);
-    if (spi_bus_transfer(&op, NULL, 1U) != SPI_OK || spi_bus_transfer(src, NULL, n) != SPI_OK) {
+    cs_low();
+    if (io_write(spi, &op, 1U) != 1U || io_write(spi, src, n) != n) {
         spi_failed = true;
     }
-    spi_dev_deselect(&enc_dev);
+    cs_high();
 }
 
 /* ---------------------------------------------------------------- reset */
@@ -318,8 +340,9 @@ enc_status_t enc28j60_init(const uint8_t mac[6])
     if (mac == NULL) {
         return ENC_ERR_PARAM;
     }
+    spi = io_open("/SPI2/", 0U);                  /* same handle main() opened */
     hard_reset();
-    if (spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+    if (!bus_lock()) {
         return ENC_ERR_SPI;
     }
     spi_failed = false;
@@ -340,7 +363,7 @@ enc_status_t enc28j60_init(const uint8_t mac[6])
     if (st == ENC_OK && spi_failed) {
         st = ENC_ERR_SPI;
     }
-    spi_bus_unlock();
+    bus_unlock();
 
     if (st == ENC_ERR_NO_CHIP || st == ENC_ERR_TIMEOUT) {
         LOG_W("not present (EREVID=0x%02X PHID1=0x%04X)", revision, phid1);
@@ -365,14 +388,14 @@ enc_status_t enc28j60_start(TaskHandle_t notify_task)
         return ENC_ERR_NO_CHIP;
     }
     irq_task = notify_task;
-    if (spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+    if (!bus_lock()) {
         return ENC_ERR_SPI;
     }
     (void)enc_phy_write(PHIE, PHIE_PGEIE | PHIE_PLNKIE);              /* link change -> LINKIF */
     enc_bit_clear(EIR, EIR_PKTIF | EIR_LINKIF | EIR_TXIF | EIR_TXERIF | EIR_RXERIF);
     enc_reg_write(EIE, EIE_INTIE | EIE_PKTIE | EIE_LINKIE | EIE_RXERIE);
     enc_bit_set(ECON1, ECON1_RXEN);
-    spi_bus_unlock();
+    bus_unlock();
 
     board_enc_int_enable();
     return ENC_OK;
@@ -396,11 +419,11 @@ const char *enc28j60_revision_name(uint8_t rev)
 
 bool enc28j60_link_up(void)
 {
-    if (revision == 0U || spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+    if (revision == 0U || !bus_lock()) {
         return false;
     }
     uint16_t st2 = enc_phy_read(PHSTAT2);
-    spi_bus_unlock();
+    bus_unlock();
     return (st2 & PHSTAT2_LSTAT) != 0U;
 }
 
@@ -408,7 +431,7 @@ uint32_t enc28j60_service(void)
 {
     uint32_t events = 0U;
 
-    if (revision == 0U || spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+    if (revision == 0U || !bus_lock()) {
         return 0U;
     }
     /* INTIE off while we look, back on at the end: if anything is still pending the
@@ -428,7 +451,7 @@ uint32_t enc28j60_service(void)
         events |= ENC_EVT_RX;
     }
     enc_bit_set(EIE, EIE_INTIE);
-    spi_bus_unlock();
+    bus_unlock();
     return events;
 }
 
@@ -456,11 +479,11 @@ enc_status_t enc28j60_rx_begin(uint16_t *len)
     if (revision == 0U) {
         return ENC_ERR_NO_CHIP;
     }
-    if (spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+    if (!bus_lock()) {
         return ENC_ERR_SPI;
     }
     if (enc_reg_read(EPKTCNT) == 0U) {
-        spi_bus_unlock();
+        bus_unlock();
         return ENC_ERR_EMPTY;
     }
 
@@ -473,7 +496,7 @@ enc_status_t enc28j60_rx_begin(uint16_t *len)
 
     if (npp > RX_END || (npp & 1U) != 0U) {
         rx_reset();                                       /* header is garbage: start over */
-        spi_bus_unlock();
+        bus_unlock();
         return ENC_ERR_RX;
     }
     next_packet = npp;
@@ -481,7 +504,7 @@ enc_status_t enc28j60_rx_begin(uint16_t *len)
     if ((rsv & RSV_RXOK) == 0U || count < 18U || count > ENC_MAX_FRAME + 4U) {
         stats.rx_dropped++;
         rx_free();
-        spi_bus_unlock();
+        bus_unlock();
         return ENC_ERR_RX;
     }
     rx_remaining = (uint16_t)(count - 4U);
@@ -503,7 +526,7 @@ void enc28j60_rx_end(void)
     rx_free();
     rx_remaining = 0U;
     stats.rx_frames++;
-    spi_bus_unlock();
+    bus_unlock();
 }
 
 uint16_t enc28j60_receive(uint8_t *buf, uint16_t size)
@@ -529,7 +552,7 @@ enc_status_t enc28j60_tx_begin(void)
     if (revision == 0U) {
         return ENC_ERR_NO_CHIP;
     }
-    if (spi_bus_lock(ENC_LOCK_TIMEOUT_MS) != SPI_OK) {
+    if (!bus_lock()) {
         return ENC_ERR_SPI;
     }
     spi_failed = false;
@@ -614,7 +637,7 @@ enc_status_t enc28j60_tx_end(void)
     } else {
         stats.tx_errors++;
     }
-    spi_bus_unlock();
+    bus_unlock();
     return st;
 }
 

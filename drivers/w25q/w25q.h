@@ -1,11 +1,12 @@
 /*
- * W25Q SPI NOR flash (Winbond W25Q16/32/64/128 and compatibles) on the shared SPI2 bus,
- * own chip select PB1.
+ * W25Q SPI NOR flash (Winbond W25Q16/32/64/128 and compatibles) on the shared /SPI2/ bus
+ * of the IO layer, own chip select IO_SPI2_CS_W25Q (PB1, app/io/io_board_f411.h).
  *
  * Provided: w25q_init() (release from power-down, JEDEC ID, capacity), status/busy helpers.
  * MENTEE TASK: w25q_read(), w25q_page_program(), w25q_sector_erase() return
  * W25Q_ERR_NOT_READY until you implement them. Contract:
- *   - every call takes the SPI bus lock (spi_bus_lock) and releases it on every path,
+ *   - every call takes the bus mutex (IO_IOCTL_OBTAIN_WRITE_MUTEX on /SPI2/), selects
+ *     IO_SPI2_CS_W25Q, and deselects and releases on every path (see cmd() in w25q.c),
  *   - program/erase: WRITE ENABLE (06h) first, then the command, then poll
  *     STATUS-1 (05h) BUSY with a timeout (page 3 ms max, 4 KB sector 400 ms max),
  *   - page program never crosses a 256-byte page boundary (the address wraps inside

@@ -9,16 +9,13 @@
 #include "log.h"
 
 #include "board.h"
-#include "spi_bus.h"
+#include "io.h"
+#include "io_board.h"
 #include "w25q.h"
 
 #define W25Q_LOCK_TIMEOUT_MS  50U
 
-static const spi_device_t w25q_dev = {
-    .name    = "w25q",
-    .cs_port = BOARD_W25Q_CS_PORT,
-    .cs_pin  = BOARD_W25Q_CS_PIN,
-};
+static io_handle_t spi;                  /* "/SPI2/", shared with the ENC28J60 (bus mutex) */
 
 static w25q_info_t info;
 static bool present;
@@ -36,13 +33,27 @@ const char *w25q_status_str(w25q_status_t st)
     }
 }
 
+/* One command = one chip-select cycle under the bus mutex: write tx_len, then read rx_len. */
 static w25q_status_t cmd(const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len)
 {
-    spi_status_t st = spi_dev_xfer(&w25q_dev, tx, tx_len, rx, rx_len, W25Q_LOCK_TIMEOUT_MS);
-    if (st == SPI_ERR_TIMEOUT) {
+    io_status_t st = (spi == NULL) ? IO_ERR_NOT_READY
+                                   : io_ioctl(spi, IO_IOCTL_OBTAIN_WRITE_MUTEX, IO_VAL(W25Q_LOCK_TIMEOUT_MS));
+    if (st != IO_OK) {
+        return (st == IO_ERR_TIMEOUT) ? W25Q_ERR_TIMEOUT : W25Q_ERR_SPI;
+    }
+    st = io_ioctl(spi, IO_IOCTL_SPI_SELECT, IO_VAL(IO_SPI2_CS_W25Q));
+    if (st == IO_OK && tx_len > 0U && io_write(spi, tx, tx_len) != tx_len) {
+        (void)io_ioctl(spi, IO_IOCTL_GET_LAST_STATUS, &st);
+    }
+    if (st == IO_OK && rx_len > 0U && io_read(spi, rx, rx_len) != rx_len) {
+        (void)io_ioctl(spi, IO_IOCTL_GET_LAST_STATUS, &st);
+    }
+    (void)io_ioctl(spi, IO_IOCTL_SPI_DESELECT, NULL);
+    (void)io_ioctl(spi, IO_IOCTL_RELEASE_WRITE_MUTEX, NULL);
+    if (st == IO_ERR_TIMEOUT) {
         return W25Q_ERR_TIMEOUT;
     }
-    return (st == SPI_OK) ? W25Q_OK : W25Q_ERR_SPI;
+    return (st == IO_OK) ? W25Q_OK : W25Q_ERR_SPI;
 }
 
 w25q_status_t w25q_init(void)
@@ -51,6 +62,7 @@ w25q_status_t w25q_init(void)
     uint8_t id[3] = { 0 };
 
     present = false;
+    spi = io_open("/SPI2/", 0U);           /* same handle main() opened */
     (void)cmd(&c, 1U, NULL, 0U);           /* wake up if it was left in power-down */
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {   /* tRES1 = 3 us */
         vTaskDelay(1);

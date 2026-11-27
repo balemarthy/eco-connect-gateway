@@ -21,12 +21,14 @@
 #include "proto_task.h"
 #include "registry.h"
 #include "serial_protocol.h"
+#include "io.h"
 #include "supervisor.h"
-#include "uart_link.h"
 
 #define PROTO_STACK_WORDS  768U
 #define PROTO_PRIORITY     (tskIDLE_PRIORITY + 2U)
-#define PROTO_TX_TIMEOUT   100U
+#define PROTO_TX_TIMEOUT   100U        /* ms per frame */
+#define PROTO_RX_TIMEOUT   1000U       /* ms: wake up at least this often to check in */
+#define PROTO_LINK_PATH    "/UART1/"   /* 115200 8N1, RX circular buffer (board default) */
 
 static StaticTask_t task_tcb;
 static StackType_t  task_stack[PROTO_STACK_WORDS];
@@ -37,6 +39,7 @@ static proto_packet_t rsp;
 static uint8_t        tx_frame[PROTO_FRAME_MAX];
 static proto_stats_t  stats;
 static sup_id_t       sup_id = SUP_INVALID;
+static io_handle_t    link;
 
 static void error_packet(proto_packet_t *out, const char *msg)
 {
@@ -88,7 +91,7 @@ static void handle(proto_packet_t *in, proto_packet_t *out)
 static void send_packet(const proto_packet_t *p)
 {
     size_t n = proto_build_frame(p, tx_frame, sizeof tx_frame);
-    if (n > 0U && !uart_link_write(tx_frame, n, PROTO_TX_TIMEOUT)) {
+    if (n > 0U && io_write(link, tx_frame, n) != n) {
         LOG_W("tx timeout");
     }
 }
@@ -121,9 +124,9 @@ static void proto_task(void *arg)
     uint8_t chunk[32];
 
     proto_rx_init(&rx);
-    LOG_I("link ready on USART1 %lu 8N1", (unsigned long)UART_LINK_BAUD);
+    LOG_I("link ready on %s", io_path(link));
     for (;;) {
-        size_t n = uart_link_read(chunk, sizeof chunk, 1000U);
+        size_t n = io_read(link, chunk, sizeof chunk);   /* returns on the first bytes or after the RX timeout */
         sup_checkin(sup_id);
         for (size_t i = 0U; i < n; i++) {
             switch (proto_rx_feed(&rx, chunk[i])) {
@@ -151,10 +154,13 @@ static void proto_task(void *arg)
 
 void proto_start(void)
 {
-    if (!uart_link_init()) {
-        LOG_E("USART1 init failed");
+    link = io_open(PROTO_LINK_PATH, 0U);
+    if (link == NULL) {
+        LOG_E("%s open failed", PROTO_LINK_PATH);
         return;
     }
+    (void)io_ioctl(link, IO_IOCTL_SET_TX_TIMEOUT, IO_VAL(PROTO_TX_TIMEOUT));
+    (void)io_ioctl(link, IO_IOCTL_SET_RX_TIMEOUT, IO_VAL(PROTO_RX_TIMEOUT));
     sup_id = sup_register("proto", 3000U);
     TaskHandle_t h = xTaskCreateStatic(proto_task, "proto", PROTO_STACK_WORDS, NULL, PROTO_PRIORITY,
                                        task_stack, &task_tcb);

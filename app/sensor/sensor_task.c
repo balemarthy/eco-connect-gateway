@@ -12,7 +12,7 @@
 #define LOG_TAG LOG_MOD_SENSOR
 #include "log.h"
 
-#include "i2c_bus.h"
+#include "io.h"
 #include "readings.h"
 #include "sensor.h"
 #include "supervisor.h"
@@ -47,21 +47,28 @@ const sensor_source_t sensor_source_sim = { "sim", sim_init, sim_read };
 
 /* ---------------------------------------------------------------- I2C source (mentee task) */
 
+static io_handle_t i2c;                 /* "/I2C1/": 100 kHz, PB8 SCL / PB9 SDA, polled */
+
 static sensor_status_t i2c_sensor_init(void)
 {
+    i2c = io_open("/I2C1/", 0U);
+    if (i2c == NULL) {
+        return SENSOR_ERR_BUS;
+    }
     /* MENTEE TASK
-     * 1. i2c_bus_init() (I2C1, 100 kHz, PB8 SCL / PB9 SDA).
-     * 2. Probe your sensor (e.g. read its ID register) and configure it.
-     * 3. Map i2c_status_t to sensor_status_t.
+     * 1. io_ioctl(i2c, IO_IOCTL_I2C_SET_SLAVE_ADDRESS, IO_VAL(<your sensor>)).
+     * 2. Probe the sensor (read its ID register with IO_IOCTL_I2C_WRITE_READ) and
+     *    configure it (io_write of register + value).
+     * 3. Map io_status_t to sensor_status_t (IO_ERR_IO = NACK or bus error).
      */
-    return (i2c_bus_init() == I2C_OK) ? SENSOR_OK : SENSOR_ERR_NOT_READY;
+    return SENSOR_ERR_NOT_READY;
 }
 
 static sensor_status_t i2c_sensor_read(int32_t *out)
 {
     /* MENTEE TASK
-     * Start a conversion (or read the last one), wait the conversion time,
-     * read the raw value with i2c_bus_write_read(), convert to 0.01 degC.
+     * Start a conversion (or read the last one), wait the conversion time, read the
+     * raw value with IO_IOCTL_I2C_WRITE_READ (io_i2c_xfer_t), convert to 0.01 degC.
      * Return SENSOR_ERR_RANGE for values the sensor cannot produce.
      */
     (void)out;

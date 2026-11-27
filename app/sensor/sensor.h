@@ -4,7 +4,7 @@
  * A sensor source is a small table of functions. Two sources exist:
  *   sensor_source_sim  - simulated temperature (default, needs no hardware)
  *   sensor_source_i2c  - I2C temperature sensor on I2C1 (PB8/PB9).
- *                        MENTEE TASK: implement it on top of drivers/i2c_bus.h.
+ *                        MENTEE TASK: implement it on /I2C1/ of the IO layer (app/io/io.h).
  *                        Until then it returns SENSOR_ERR_NOT_READY.
  * Select with `make SENSOR=i2c` (default `SENSOR=sim`).
  *
