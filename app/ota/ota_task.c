@@ -50,7 +50,7 @@ typedef struct {                                  /* what GET ota shows */
 } ota_snap_t;
 
 static StaticTask_t task_tcb;
-static StackType_t  task_stack[DEMO_TASK_STACK_WORDS];
+static StackType_t  task_stack[OTA_TASK_STACK_WORDS];
 static sup_id_t     sup_id = SUP_INVALID;
 
 static StaticQueue_t q_ctrl;
@@ -208,6 +208,10 @@ static void start(uint32_t crc)
     } else {
         LOG_W("ota: failed: %s", ota_reason_name(fsm.reason));
     }
+    /* high-water mark after a full run: confirms OTA_TASK_STACK_WORDS on the board */
+    LOG_I("ota: stack never used %lu of %lu bytes",
+          (unsigned long)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)),
+          (unsigned long)sizeof task_stack);
 }
 
 static void ota_task(void *arg)
@@ -360,7 +364,7 @@ void demo_start(void)
         }
     }
     sup_id = sup_register("ota", OTA_SUP_WINDOW_MS);
-    TaskHandle_t h = xTaskCreateStatic(ota_task, "ota", DEMO_TASK_STACK_WORDS, NULL,
+    TaskHandle_t h = xTaskCreateStatic(ota_task, "ota", OTA_TASK_STACK_WORDS, NULL,
                                        tskIDLE_PRIORITY + DEMO_TASK_PRIORITY, task_stack, &task_tcb);
     configASSERT(h != NULL);
 }

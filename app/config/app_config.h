@@ -100,10 +100,17 @@
 #define OTA_SERVER_PATH         "/fw/eco-connect-gateway.bin"
 #endif
 #ifndef OTA_BLOCK_SIZE
-#define OTA_BLOCK_SIZE          1024U            /* bytes per HTTP Range request */
+#define OTA_BLOCK_SIZE          512U             /* bytes per HTTP Range request = block buffer */
 #endif
 #ifndef OTA_MAX_IMAGE_SIZE
-#define OTA_MAX_IMAGE_SIZE      (16UL * 1024UL)  /* RAM backend size; FatFs backend may go larger */
+#define OTA_MAX_IMAGE_SIZE      (16UL * 1024UL)  /* RAM store only (OTA_STORE=ram): static buffer */
+#endif
+/* OTA task stack. Static estimate (gcc -fstack-usage + call graph, docs/demos/ota.md):
+   ~1.1 KB worst case (ota_task -> log_write -> newlib vsnprintf, or -> fetch -> netconn
+   calls, plus the FPU context frame). FatFs runs in the storage task, not here.
+   Each download logs "stack never used N of 2048 bytes" to confirm it on the board. */
+#ifndef OTA_TASK_STACK_WORDS
+#define OTA_TASK_STACK_WORDS    512U
 #endif
 #define OTA_URL_MAX             96U
 #define OTA_HTTP_TIMEOUT_MS     5000U            /* per block request */
@@ -116,11 +123,12 @@
 #define OTA_VERIFY              OTA_VERIFY_CRC32
 #endif
 
-/* image store: RAM buffer (default) or a file on the FatFs volume */
+/* image store: a file on the FatFs volume (default, make DEMO=ota) or a RAM buffer
+   (make DEMO=ota OTA_STORE=ram, which adds OTA_MAX_IMAGE_SIZE bytes of RAM) */
 #define OTA_STORAGE_RAM         1
 #define OTA_STORAGE_FATFS       2
 #ifndef OTA_STORAGE
-#define OTA_STORAGE             OTA_STORAGE_RAM
+#define OTA_STORAGE             OTA_STORAGE_FATFS
 #endif
 #define OTA_FATFS_FILE          "OTA.BIN"
 #ifndef OTA_MAX_IMAGE_SIZE_FATFS

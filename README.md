@@ -41,7 +41,7 @@ firmware above. Demo output goes to `build/demo-<name>/`.
 | `tcp_echo` | echo server on TCP :7 (netconn) |
 | `mqtt` | publishes the reading JSON to `eco/<node>/temp` with coreMQTT (`third_party/coreMQTT`, MIT) |
 | `plusio` | FreeRTOS+IO style `open/read/write/ioctl` adapter over our drivers (skeleton) |
-| `ota` | image download with HTTP Range into a RAM store, size + CRC32 check (`SET ota ...`, `POST /ota`) |
+| `ota` | image download with HTTP Range into a FatFs file (or `OTA_STORE=ram`), size + CRC32 check (`SET ota ...`, `POST /ota`) |
 
 ## Interfaces
 

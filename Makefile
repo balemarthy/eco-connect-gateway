@@ -6,6 +6,8 @@
 #   make test       build and run the host unit tests (needs a host gcc)
 #   make DEMO=x     add one demo task: none (default) | tcp_echo | mqtt | plusio | ota
 #                   (output in build/demo-x/, see docs/demos/)
+#   make DEMO=ota OTA_STORE=ram      OTA image in RAM instead of the FatFs file (build/demo-ota-ram/)
+#   make EXTRA_DEFS="-DNAME=value"   override a setting of app/config/app_config.h
 #
 # The toolchain (arm-none-eabi-*) and make must be on PATH. On Windows use build.ps1,
 # which adds the STM32CubeIDE toolchain to PATH for that one call.
@@ -193,14 +195,26 @@ SRC_DEMO += app/plusio/plusio.c app/plusio/plusio_demo.c
 INC      += -Iapp/plusio
 endif
 
-# DEMO=ota : image download by HTTP Range into a RAM (or FatFs) store, size + CRC32 check
+# DEMO=ota : image download by HTTP Range into a FatFs file (default) or a RAM store, size + CRC32 check
+#   make DEMO=ota OTA_STORE=ram : 16 KB RAM buffer instead (no W25Q needed, +16 KB RAM)
+# Both stores are compiled (so both stay warning-free); --gc-sections drops the unused one.
+OTA_STORE ?= fatfs
 ifeq ($(DEMO),ota)
 DEFS     += -DAPP_DEMO_OTA=1
 SRC_DEMO += app/ota/ota_crc32.c app/ota/ota_reasm.c app/ota/ota_fsm.c \
             app/ota/ota_storage_ram.c app/ota/ota_storage_fatfs.c \
             app/ota/ota_http_msg.c app/ota/ota_http.c app/ota/ota_task.c
 INC      += -Iapp/ota
+ifeq ($(OTA_STORE),ram)
+DEFS     += -DOTA_STORAGE=OTA_STORAGE_RAM
+BUILD    := build/demo-ota-ram
+else ifneq ($(OTA_STORE),fatfs)
+$(error OTA_STORE=$(OTA_STORE) is not one of: fatfs ram)
 endif
+endif
+
+# make EXTRA_DEFS="-DMQTT_QOS=0 ..." : override any #ifndef setting of app/config/app_config.h
+DEFS += $(EXTRA_DEFS)
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
