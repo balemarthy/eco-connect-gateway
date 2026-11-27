@@ -51,7 +51,7 @@ DEFS += -DSUP_USE_IWDG=$(WATCHDOG)
 # DEMO=none (default) adds no define, no source and no include path: the firmware is the plain gateway.
 # Each demo builds into its own folder (build/demo-<name>/), so switching never mixes objects.
 DEMO ?= none
-DEMOS := none tcp_echo mqtt
+DEMOS := none tcp_echo mqtt plusio
 ifeq ($(filter $(DEMO),$(DEMOS)),)
 $(error DEMO=$(DEMO) is not one of: $(DEMOS))
 endif
@@ -184,6 +184,13 @@ SRC_DEMO_3P += $(MQTT_DIR)/source/core_mqtt.c \
                $(MQTT_DIR)/source/core_mqtt_serializer.c \
                $(MQTT_DIR)/source/core_mqtt_state.c
 INC         += -Iapp/mqtt -I$(MQTT_DIR)/source/include -I$(MQTT_DIR)/source/interface
+endif
+
+# DEMO=plusio : open/read/write/ioctl adapter (FreeRTOS+IO style) over our drivers - skeleton
+ifeq ($(DEMO),plusio)
+DEFS     += -DAPP_DEMO_PLUSIO=1
+SRC_DEMO += app/plusio/plusio.c app/plusio/plusio_demo.c
+INC      += -Iapp/plusio
 endif
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
