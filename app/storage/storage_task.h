@@ -4,7 +4,9 @@
  *
  * No media (no chip, or the W25Q data path not written yet): the task logs
  * "no media, logging off" once and keeps serving the RAM tail.
- * Only this task touches FatFs, so FatFs runs without re-entrancy locks.
+ * Only this task touches FatFs, so FatFs runs without re-entrancy locks. Another task
+ * that needs the file system (the OTA FatFs store) hands a job to storage_call(), which
+ * runs it here.
  */
 #ifndef STORAGE_TASK_H
 #define STORAGE_TASK_H
@@ -25,6 +27,13 @@ void storage_start(void);
 
 /* Non-blocking hand-over from the app task; false if the queue is full. */
 bool storage_submit(const reading_t *r);
+
+/* Runs fn(arg) in the storage task and returns its value in *result (may be NULL).
+   Blocks the caller. false: not queued or not started within timeout_ms (the job is then
+   cancelled and never runs). A job that has started is always waited for. One call at a
+   time; not before the scheduler runs, not from an ISR. */
+typedef int32_t (*storage_fn_t)(void *arg);
+bool storage_call(storage_fn_t fn, void *arg, int32_t *result, uint32_t timeout_ms);
 
 bool     storage_persistent(void);   /* file system mounted */
 uint32_t storage_lines_written(void);

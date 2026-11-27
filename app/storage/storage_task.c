@@ -1,10 +1,13 @@
 /*
- * Storage task: readings -> JSON lines in READINGS.LOG, plus a RAM tail.
+ * Storage task: readings -> JSON lines in READINGS.LOG, plus a RAM tail, and
+ * storage_call() jobs from other tasks (the OTA FatFs store). One queue carries both,
+ * so the task blocks in one place and stays the only caller of FatFs.
  */
 #include <string.h>
 
 #include "FreeRTOS.h"
 #include "queue.h"
+#include "semphr.h"
 #include "task.h"
 
 #include "ff.h"
@@ -24,9 +27,27 @@
 
 static StaticTask_t task_tcb;
 static StackType_t  task_stack[STORAGE_STACK_WORDS];
+/* queue item: a reading to log, or "run the pending storage_call() job" */
+typedef enum { MSG_READING = 0, MSG_CALL } msg_kind_t;
+typedef struct {
+    uint8_t   kind;
+    reading_t r;
+} storage_msg_t;
+
 static StaticQueue_t q_ctrl;
-static uint8_t       q_storage[STORAGE_QUEUE_DEPTH * sizeof(reading_t)];
+static uint8_t       q_storage[STORAGE_QUEUE_DEPTH * sizeof(storage_msg_t)];
 static QueueHandle_t q;
+
+/* one storage_call() at a time: call_lock serialises callers, call_done reports the end */
+typedef enum { CALL_IDLE = 0, CALL_PENDING, CALL_RUNNING, CALL_DONE, CALL_CANCELLED } call_state_t;
+static StaticSemaphore_t call_lock_buf;
+static SemaphoreHandle_t call_lock;
+static StaticSemaphore_t call_done_buf;
+static SemaphoreHandle_t call_done;
+static storage_fn_t      call_fn;
+static void             *call_arg;
+static int32_t           call_result;
+static volatile uint8_t  call_state;           /* call_state_t, changed under a critical section */
 
 static FATFS fs;
 static FIL   file;
@@ -147,10 +168,26 @@ static void append(const reading_t *r)
     }
 }
 
+/* MSG_CALL: run the job unless the caller gave up before it started */
+static void run_call(void)
+{
+    taskENTER_CRITICAL();
+    bool run = (call_state == CALL_PENDING);
+    if (run) {
+        call_state = CALL_RUNNING;
+    }
+    taskEXIT_CRITICAL();
+    if (run) {
+        call_result = call_fn(call_arg);
+        call_state = CALL_DONE;
+        (void)xSemaphoreGive(call_done);
+    }
+}
+
 static void storage_task(void *arg)
 {
     (void)arg;
-    reading_t r;
+    storage_msg_t m;
 
     mounted = mount();
     if (mounted) {
@@ -160,22 +197,29 @@ static void storage_task(void *arg)
     }
 
     for (;;) {
-        BaseType_t got = xQueueReceive(q, &r, pdMS_TO_TICKS(1000U));
+        BaseType_t got = xQueueReceive(q, &m, pdMS_TO_TICKS(1000U));
         sup_checkin(sup_id);
         if (got != pdPASS) {
             continue;
         }
-        tail_push(&r);
+        if (m.kind == MSG_CALL) {
+            run_call();
+            continue;
+        }
+        tail_push(&m.r);
         if (mounted && file_open) {
-            append(&r);
+            append(&m.r);
         }
     }
 }
 
 void storage_start(void)
 {
-    q = xQueueCreateStatic(STORAGE_QUEUE_DEPTH, sizeof(reading_t), q_storage, &q_ctrl);
+    q = xQueueCreateStatic(STORAGE_QUEUE_DEPTH, sizeof(storage_msg_t), q_storage, &q_ctrl);
     configASSERT(q != NULL);
+    call_lock = xSemaphoreCreateMutexStatic(&call_lock_buf);
+    call_done = xSemaphoreCreateBinaryStatic(&call_done_buf);
+    configASSERT(call_lock != NULL && call_done != NULL);
     (void)registry_register(&history_entry);
     sup_id = sup_register("storage", 30000U);        /* formatting a blank chip takes a while */
     TaskHandle_t h = xTaskCreateStatic(storage_task, "storage", STORAGE_STACK_WORDS, NULL, STORAGE_PRIORITY,
@@ -185,7 +229,54 @@ void storage_start(void)
 
 bool storage_submit(const reading_t *r)
 {
-    return (q != NULL) && (xQueueSend(q, r, 0) == pdPASS);
+    if (q == NULL) {
+        return false;
+    }
+    storage_msg_t m = { .kind = MSG_READING, .r = *r };
+    return xQueueSend(q, &m, 0) == pdPASS;
+}
+
+bool storage_call(storage_fn_t fn, void *arg, int32_t *result, uint32_t timeout_ms)
+{
+    const TickType_t wait = pdMS_TO_TICKS(timeout_ms);
+    bool ok = false;
+
+    if (q == NULL || fn == NULL || xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+        return false;
+    }
+    if (xSemaphoreTake(call_lock, wait) != pdTRUE) {
+        return false;
+    }
+    call_fn = fn;
+    call_arg = arg;
+    call_state = CALL_PENDING;
+    const storage_msg_t m = { .kind = MSG_CALL };
+    if (xQueueSend(q, &m, wait) == pdPASS) {
+        if (xSemaphoreTake(call_done, wait) == pdTRUE) {
+            ok = true;
+        } else {
+            /* not finished in time: cancel it if it has not started, else wait for the end
+               (a started FatFs call is bounded by the W25Q driver timeouts) */
+            taskENTER_CRITICAL();
+            bool started = (call_state != CALL_PENDING);
+            if (!started) {
+                call_state = CALL_CANCELLED;
+            }
+            taskEXIT_CRITICAL();
+            if (started) {
+                (void)xSemaphoreTake(call_done, portMAX_DELAY);
+                ok = true;
+            }
+        }
+    }
+    if (ok && result != NULL) {
+        *result = call_result;
+    }
+    if (call_state != CALL_CANCELLED) {
+        call_state = CALL_IDLE;
+    }
+    (void)xSemaphoreGive(call_lock);
+    return ok;
 }
 
 bool storage_persistent(void)
