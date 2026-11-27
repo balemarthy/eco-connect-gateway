@@ -8,16 +8,16 @@
 
 #include "arch/cc.h"
 #include "stm32f4xx_hal.h"
-#include "uart_console.h"
+#include "io.h"
 
 void lwip_port_assert(const char *msg, const char *file, int line)
 {
     (void)line;
-    console_panic("lwip assert: ");
-    console_panic(msg);
-    console_panic(" @ ");
-    console_panic(file);
-    console_panic("\r\n");
+    io_panic_puts("lwip assert: ");
+    io_panic_puts(msg);
+    io_panic_puts(" @ ");
+    io_panic_puts(file);
+    io_panic_puts("\r\n");
     taskDISABLE_INTERRUPTS();
     for (;;) {
     }

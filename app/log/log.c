@@ -9,9 +9,10 @@
 #include "queue.h"
 #include "task.h"
 
+#include "io.h"
+#include "io_board.h"
 #include "log.h"
 #include "supervisor.h"
-#include "uart_console.h"
 
 #define LOG_TASK_STACK_WORDS  256U
 #define LOG_TASK_PRIORITY     (tskIDLE_PRIORITY + 1U)
@@ -38,6 +39,9 @@ static StaticTask_t task_tcb;
 static StackType_t  task_stack[LOG_TASK_STACK_WORDS];
 static sup_id_t     sup_id = SUP_INVALID;
 
+/* console: polled before the scheduler, character-queue TX afterwards (board default) */
+static io_handle_t  con;
+
 static const char level_char[] = { '-', 'E', 'W', 'I', 'D' };
 
 static void log_task(void *arg)
@@ -47,7 +51,7 @@ static void log_task(void *arg)
 
     for (;;) {
         if (xQueueReceive(q, &line, pdMS_TO_TICKS(1000U)) == pdPASS) {
-            console_write(line.text, line.len);
+            (void)io_write(con, line.text, line.len);
         }
         sup_checkin(sup_id);
     }
@@ -58,6 +62,7 @@ void log_init(void)
     for (unsigned i = 0; i < LOG_MOD_COUNT; i++) {
         mod_level[i] = (uint8_t)LOG_DEFAULT_LEVEL;
     }
+    con = io_open(IO_BOARD_CONSOLE_PATH, 0U);          /* same handle main() opened */
     q = xQueueCreateStatic(LOG_QUEUE_DEPTH, sizeof(log_line_t), q_storage, &q_ctrl);
     configASSERT(q != NULL);
     sup_id = sup_register("log", 3000U);
@@ -96,7 +101,7 @@ void log_write(log_module_t mod, log_level_t lvl, const char *fmt, ...)
     line.len = (uint16_t)pos;
 
     if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-        console_write(line.text, line.len);
+        (void)io_write(con, line.text, line.len);     /* polled: the only thread so far */
         return;
     }
     if (xQueueSend(q, &line, 0) != pdPASS) {

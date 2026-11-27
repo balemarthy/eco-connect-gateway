@@ -23,11 +23,11 @@
 #include "net_init.h"
 #include "proto_task.h"
 #include "sensor.h"
-#include "spi_bus.h"
+#include "io.h"
+#include "io_board.h"
 #include "storage_task.h"
 #include "supervisor.h"
 #include "task_heartbeat.h"
-#include "uart_console.h"
 #if defined(APP_DEMO) && APP_DEMO
 #include "demo.h"                                 /* make DEMO=...: one extra demo task */
 #endif
@@ -38,10 +38,11 @@ int main(void)
     clock_source_t src = clock_init();
     board_init();
     bool wd_reset = iwdg_caused_reset();
-    (void)console_init();
+    io_handle_t con = io_open(IO_BOARD_CONSOLE_PATH, 0U);   /* polled until the scheduler runs */
     log_init();
 
-    console_puts("\r\nEco-Connect boot\r\n");
+    static const char banner[] = "\r\nEco-Connect boot\r\n";
+    (void)io_write(con, banner, sizeof banner - 1U);
     LOG_I("boot");
     if (wd_reset) {
         LOG_W("last reset by the watchdog");
@@ -51,7 +52,9 @@ int main(void)
 
     sup_start();                                  /* state machine + task watchdog, first */
     commands_init();                              /* GET-SET registry table */
-    (void)spi_bus_init();
+    if (io_open("/SPI2/", 0U) == NULL) {          /* bus for the ENC28J60 and the W25Q */
+        LOG_E("/SPI2/ open failed");
+    }
     net_init();                                   /* tcpip thread adds the ENC28J60 netif */
     sensor_start();                               /* sampling timer -> readings queue */
     app_start();                                  /* readings queue -> latest reading */
@@ -65,7 +68,7 @@ int main(void)
     vTaskStartScheduler();
 
     /* Only reached if the idle or timer task could not be created. */
-    console_panic("scheduler failed\r\n");
+    io_panic_puts("scheduler failed\r\n");
     for (;;) {
     }
 }

@@ -5,7 +5,7 @@
  */
 #include "FreeRTOS.h"
 #include "task.h"
-#include "uart_console.h"
+#include "io.h"
 
 static void halt(void)
 {
@@ -17,15 +17,15 @@ static void halt(void)
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
     (void)xTask;
-    console_panic("stack overflow: ");
-    console_panic(pcTaskName);
-    console_panic("\r\n");
+    io_panic_puts("stack overflow: ");
+    io_panic_puts(pcTaskName);
+    io_panic_puts("\r\n");
     halt();
 }
 
 void vApplicationMallocFailedHook(void)
 {
-    console_panic("malloc failed\r\n");
+    io_panic_puts("malloc failed\r\n");
     halt();
 }
 
@@ -41,10 +41,10 @@ void vAssertCalled(const char *file, int line)
         v /= 10U;
     } while (v != 0U && i > 0);
 
-    console_panic("assert: ");
-    console_panic(file);
-    console_panic(":");
-    console_panic(&num[i]);
-    console_panic("\r\n");
+    io_panic_puts("assert: ");
+    io_panic_puts(file);
+    io_panic_puts(":");
+    io_panic_puts(&num[i]);
+    io_panic_puts("\r\n");
     halt();
 }

@@ -91,11 +91,20 @@ SRC_BSP := \
   bsp/iwdg.c \
   bsp/stm32f4xx_it.c
 
+# IO layer: open/read/write/ioctl by path, board table, UART/SPI/I2C drivers, transfer modes
+SRC_IO := \
+  app/io/io_core.c \
+  app/io/io_board.c \
+  app/io/io_mode_polled.c \
+  app/io/io_mode_circ_buf.c \
+  app/io/io_mode_char_queue.c \
+  app/io/io_mode_zero_copy.c \
+  app/io/io_uart.c \
+  app/io/io_spi.c \
+  app/io/io_i2c.c
+
+# device drivers on top of the IO layer
 SRC_DRV := \
-  drivers/uart_console.c \
-  drivers/spi_bus.c \
-  drivers/i2c_bus.c \
-  drivers/uart_link.c \
   drivers/w25q/w25q.c \
   drivers/enc28j60/enc28j60.c
 
@@ -105,7 +114,7 @@ SRC_ASM := bsp/startup_stm32f411retx.s
 HAL_DIR := third_party/stm32f4xx_hal
 HAL_MODULES := hal hal_cortex hal_rcc hal_rcc_ex hal_gpio hal_dma hal_dma_ex hal_exti \
                hal_flash hal_flash_ex hal_flash_ramfunc hal_pwr hal_pwr_ex hal_uart \
-               hal_tim hal_tim_ex hal_spi
+               hal_tim hal_tim_ex hal_spi hal_i2c
 SRC_HAL := $(foreach m,$(HAL_MODULES),$(HAL_DIR)/Src/stm32f4xx_$(m).c)
 
 RTOS_DIR := third_party/freertos
@@ -146,6 +155,7 @@ INC := \
   -Iapp/registry \
   -Iapp/http \
   -Iapp/storage \
+  -Iapp/io \
   -Imiddleware/fatfs_port \
   -I$(FATFS_DIR)/source \
   -Imiddleware/lwip_port \
@@ -188,11 +198,10 @@ SRC_DEMO_3P += $(MQTT_DIR)/source/core_mqtt.c \
 INC         += -Iapp/mqtt -I$(MQTT_DIR)/source/include -I$(MQTT_DIR)/source/interface
 endif
 
-# DEMO=plusio : open/read/write/ioctl adapter (FreeRTOS+IO style) over our drivers - skeleton
+# DEMO=plusio : small demo task of the IO layer API (app/io/, docs/io-layer.md)
 ifeq ($(DEMO),plusio)
 DEFS     += -DAPP_DEMO_PLUSIO=1
-SRC_DEMO += app/plusio/plusio.c app/plusio/plusio_demo.c
-INC      += -Iapp/plusio
+SRC_DEMO += app/demos/plusio_demo.c
 endif
 
 # DEMO=ota : image download by HTTP Range into a FatFs file (default) or a RAM store, size + CRC32 check
@@ -218,7 +227,7 @@ DEFS += $(EXTRA_DEFS)
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
-SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP) $(SRC_FATFS) \
+SRC_C := $(SRC_APP) $(SRC_IO) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP) $(SRC_FATFS) \
          $(SRC_DEMO) $(SRC_DEMO_3P)
 
 # ---------------------------------------------------------------- flags

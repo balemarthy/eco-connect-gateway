@@ -1,5 +1,6 @@
 /*
- * ENC28J60 10BASE-T Ethernet controller on SPI2.
+ * ENC28J60 10BASE-T Ethernet controller on the shared /SPI2/ bus of the IO layer
+ * (chip select IO_SPI2_CS_ENC28J60, PB12; the bus mutex is the "lock" below).
  *
  * Receive (bus locked from rx_begin to rx_end, so read the frame in one go):
  *     uint16_t len;

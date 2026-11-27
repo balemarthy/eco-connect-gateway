@@ -1,6 +1,8 @@
 /*
- * NUCLEO-F411RE board definitions: pins, alternate functions, interrupt priorities.
- * One place for the pin map; drivers take their pins from here.
+ * NUCLEO-F411RE board definitions that are not IO-layer peripherals: LED, button,
+ * the ENC28J60 interrupt and reset lines, the EXTI priority, clocks.
+ * UART, SPI and I2C pins, chip selects and their IRQ priorities are in the IO board
+ * table, app/io/io_board_f411.h.
  */
 #ifndef BOARD_H
 #define BOARD_H
@@ -15,51 +17,16 @@
 #define BOARD_B1_PORT         GPIOC
 #define BOARD_B1_PIN          GPIO_PIN_13      /* active low */
 
-/* ---- console: USART2 on the ST-LINK virtual COM port --------------------- */
-#define BOARD_CONSOLE_UART    USART2
-#define BOARD_CONSOLE_PORT    GPIOA
-#define BOARD_CONSOLE_TX_PIN  GPIO_PIN_2
-#define BOARD_CONSOLE_RX_PIN  GPIO_PIN_3
-#define BOARD_CONSOLE_AF      GPIO_AF7_USART2
-#define BOARD_CONSOLE_BAUD    115200U
-
-/* ---- framed serial link: USART1 ------------------------------------------- */
-#define BOARD_LINK_UART       USART1
-#define BOARD_LINK_PORT       GPIOA
-#define BOARD_LINK_TX_PIN     GPIO_PIN_9
-#define BOARD_LINK_RX_PIN     GPIO_PIN_10
-#define BOARD_LINK_AF         GPIO_AF7_USART1
-
-/* ---- SPI2: ENC28J60 + W25Q on one bus, one CS each ------------------------ */
-#define BOARD_SPI             SPI2
-#define BOARD_SPI_PORT        GPIOB
-#define BOARD_SPI_SCK_PIN     GPIO_PIN_13
-#define BOARD_SPI_MISO_PIN    GPIO_PIN_14
-#define BOARD_SPI_MOSI_PIN    GPIO_PIN_15
-#define BOARD_SPI_AF          GPIO_AF5_SPI2
-
-#define BOARD_ENC_CS_PORT     GPIOB
-#define BOARD_ENC_CS_PIN      GPIO_PIN_12
+/* ---- ENC28J60 control lines (its SPI2 chip select is in io_board_f411.h) -- */
 #define BOARD_ENC_INT_PORT    GPIOC
 #define BOARD_ENC_INT_PIN     GPIO_PIN_4       /* EXTI4, active low */
 #define BOARD_ENC_RST_PORT    GPIOC
 #define BOARD_ENC_RST_PIN     GPIO_PIN_5       /* active low */
 
-#define BOARD_W25Q_CS_PORT    GPIOB
-#define BOARD_W25Q_CS_PIN     GPIO_PIN_1
-
-/* ---- I2C1: temperature sensor (Arduino D15/D14) --------------------------- */
-#define BOARD_I2C             I2C1
-#define BOARD_I2C_PORT        GPIOB
-#define BOARD_I2C_SCL_PIN     GPIO_PIN_8
-#define BOARD_I2C_SDA_PIN     GPIO_PIN_9
-#define BOARD_I2C_AF          GPIO_AF4_I2C1
-
 /* ---- NVIC priorities (0 = highest). Any ISR that calls a FreeRTOS "FromISR"
- *      function must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (5). */
-#define BOARD_IRQ_PRIO_LINK      5U
+ *      function must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (5).
+ *      USART1 5 and USART2 7 are set in io_board_f411.h. */
 #define BOARD_IRQ_PRIO_ENC_INT   6U
-#define BOARD_IRQ_PRIO_CONSOLE   7U
 
 /* ---- clocks ---------------------------------------------------------------- */
 #define BOARD_SYSCLK_HZ       100000000U       /* HCLK 100 MHz, APB1 50 MHz, APB2 100 MHz */
