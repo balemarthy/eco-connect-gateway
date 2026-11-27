@@ -114,6 +114,17 @@ Not yet run on hardware.
 
 See `docs/memory-budget.md` (flash 19 %, RAM 69 % with the IO layer) and `docs/architecture.md`.
 
+## Documents
+
+| Document | What |
+|---|---|
+| [docs/architecture-design.md](docs/architecture-design.md) | architecture and design of the whole gateway: requirements, use cases, quality scenarios, modules, interfaces, task model, memory, error handling, verification, traceability, open risks |
+| [docs/architecture.md](docs/architecture.md) | short overview: tasks, priorities, layers |
+| [docs/io-layer.md](docs/io-layer.md) | peripheral IO layer: board table, transfer modes, ioctl list, how to add a board |
+| [docs/memory-budget.md](docs/memory-budget.md) | flash and RAM by owner |
+| [docs/demos/README.md](docs/demos/README.md) | optional demos and their sizes |
+| [docs/steps/README.md](docs/steps/README.md) | step-by-step walkthrough of the history |
+
 ## Licences
 
 Third-party code keeps its own licence; see `third_party/README.md`.
