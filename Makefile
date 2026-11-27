@@ -51,7 +51,7 @@ DEFS += -DSUP_USE_IWDG=$(WATCHDOG)
 # DEMO=none (default) adds no define, no source and no include path: the firmware is the plain gateway.
 # Each demo builds into its own folder (build/demo-<name>/), so switching never mixes objects.
 DEMO ?= none
-DEMOS := none tcp_echo mqtt plusio
+DEMOS := none tcp_echo mqtt plusio ota
 ifeq ($(filter $(DEMO),$(DEMOS)),)
 $(error DEMO=$(DEMO) is not one of: $(DEMOS))
 endif
@@ -191,6 +191,15 @@ ifeq ($(DEMO),plusio)
 DEFS     += -DAPP_DEMO_PLUSIO=1
 SRC_DEMO += app/plusio/plusio.c app/plusio/plusio_demo.c
 INC      += -Iapp/plusio
+endif
+
+# DEMO=ota : image download by HTTP Range into a RAM (or FatFs) store, size + CRC32 check
+ifeq ($(DEMO),ota)
+DEFS     += -DAPP_DEMO_OTA=1
+SRC_DEMO += app/ota/ota_crc32.c app/ota/ota_reasm.c app/ota/ota_fsm.c \
+            app/ota/ota_storage_ram.c app/ota/ota_storage_fatfs.c \
+            app/ota/ota_http_msg.c app/ota/ota_http.c app/ota/ota_task.c
+INC      += -Iapp/ota
 endif
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld

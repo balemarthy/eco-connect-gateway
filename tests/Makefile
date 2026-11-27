@@ -30,8 +30,12 @@ SRC_test_fsm := ../app/core/gateway_fsm.c
 # OTA demo core (pure C): CRC32, block reassembly, RAM store, download state machine
 SRC_test_ota := ../app/ota/ota_crc32.c ../app/ota/ota_reasm.c ../app/ota/ota_storage_ram.c \
                 ../app/ota/ota_fsm.c
+# OTA HTTP pieces + the /ota route, with the router built as in make DEMO=ota
+SRC_test_ota_http := ../app/ota/ota_http_msg.c ../app/http/http_router.c ../app/http/http_response.c \
+                     ../app/registry/registry.c ../app/json/json_writer.c ../app/json/json_parser.c
+DEFS_test_ota_http := -DAPP_DEMO=1 -DAPP_DEMO_OTA=1
 
-TESTS := test_json test_serial_protocol test_registry test_http test_fsm test_ota
+TESTS := test_json test_serial_protocol test_registry test_http test_fsm test_ota test_ota_http
 
 BINS := $(addprefix $(BUILD)/,$(addsuffix $(EXE),$(TESTS)))
 

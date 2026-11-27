@@ -6,7 +6,7 @@
  * exactly that length (same rule as the legacy AWS OTA agent's validateDataBlock()),
  * written to the store at index * block_size, and marked in the bitmap. The image is
  * complete when every bit is set. Pure C, no allocation: the bitmap is sized for
- * OTA_REASM_MAX_BLOCKS at compile time.
+ * OTA_REASM_MAX_BLOCKS at compile time (16 blocks = 2 bytes for the 16 KB RAM store).
  */
 #ifndef OTA_REASM_H
 #define OTA_REASM_H
@@ -19,7 +19,7 @@
 #include "ota_storage.h"
 
 #ifndef OTA_REASM_MAX_BLOCKS
-#define OTA_REASM_MAX_BLOCKS  ((OTA_MAX_IMAGE_SIZE + OTA_BLOCK_SIZE - 1U) / OTA_BLOCK_SIZE)
+#define OTA_REASM_MAX_BLOCKS  ((OTA_IMAGE_LIMIT + OTA_BLOCK_SIZE - 1U) / OTA_BLOCK_SIZE)
 #endif
 
 typedef enum {

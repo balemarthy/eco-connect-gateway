@@ -123,6 +123,11 @@
 #define OTA_STORAGE             OTA_STORAGE_RAM
 #endif
 #define OTA_FATFS_FILE          "OTA.BIN"
+#ifndef OTA_MAX_IMAGE_SIZE_FATFS
+#define OTA_MAX_IMAGE_SIZE_FATFS (256UL * 1024UL)
+#endif
+/* largest image the selected store accepts; also sizes the block bitmap */
+#define OTA_IMAGE_LIMIT         ((OTA_STORAGE == OTA_STORAGE_FATFS) ? OTA_MAX_IMAGE_SIZE_FATFS : OTA_MAX_IMAGE_SIZE)
 
 #if (OTA_MAX_IMAGE_SIZE % OTA_BLOCK_SIZE) != 0
 #error "OTA_MAX_IMAGE_SIZE must be a multiple of OTA_BLOCK_SIZE"

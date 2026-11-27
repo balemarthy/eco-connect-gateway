@@ -237,6 +237,74 @@ static void h_log(const http_request_t *req, http_response_t *resp)
     reply_registry_get("history", resp);
 }
 
+#if defined(APP_DEMO_OTA) && APP_DEMO_OTA
+/* ---------------------------------------------------------------- OTA demo (make DEMO=ota) */
+#include "app_config.h"
+
+static void h_ota_get(const http_request_t *req, http_response_t *resp)
+{
+    (void)req;
+    reply_registry_get("ota", resp);
+}
+
+static void reply_registry_set(const char *key, const char *value, http_response_t *resp)
+{
+    reg_status_t st = registry_set(key, value, resp->body, resp->body_size);
+    resp->status = reg_to_http(st);
+    resp->content_type = HTTP_CT_JSON;
+    resp->body_len = strlen(resp->body);
+}
+
+/* POST /ota {"url":"http://192.168.1.10:8080/fw.bin","crc32":"1a2b3c4d"}  (url optional)
+ *      -> SET ota_url <url>, SET ota start <crc32>
+ * POST /ota {"cmd":"abort"} | {"cmd":"reset"}  -> SET ota abort | reset */
+static void h_ota_post(const http_request_t *req, http_response_t *resp)
+{
+    json_object_t obj;
+    char cmd[8];
+    char url[OTA_URL_MAX];
+    char crc[12];
+    char value[24];
+
+    json_status_t js = json_parse_object(req->body, req->body_len, &obj);
+    if (js != JSON_OK) {
+        json_error(resp, 400, "bad json", json_status_str(js));
+        return;
+    }
+    js = json_get_string(&obj, "cmd", cmd, sizeof cmd);
+    if (js == JSON_ERR_NOT_FOUND) {
+        (void)strcpy(cmd, "start");
+    } else if (js != JSON_OK) {
+        json_error(resp, 400, "cmd", json_status_str(js));
+        return;
+    }
+    if (strcmp(cmd, "start") != 0) {
+        reply_registry_set("ota", cmd, resp);        /* abort / reset; others -> 400 from the setter */
+        return;
+    }
+    js = json_get_string(&obj, "crc32", crc, sizeof crc);      /* checked before the URL changes */
+    if (js != JSON_OK) {
+        json_error(resp, 400, "crc32", json_status_str(js));
+        return;
+    }
+    js = json_get_string(&obj, "url", url, sizeof url);
+    if (js == JSON_OK) {
+        reg_status_t st = registry_set("ota_url", url, resp->body, resp->body_size);
+        if (st != REG_OK) {
+            resp->status = reg_to_http(st);
+            resp->content_type = HTTP_CT_JSON;
+            resp->body_len = strlen(resp->body);
+            return;
+        }
+    } else if (js != JSON_ERR_NOT_FOUND) {
+        json_error(resp, 400, "url", json_status_str(js));
+        return;
+    }
+    (void)snprintf(value, sizeof value, "start %s", crc);
+    reply_registry_set("ota", value, resp);          /* 200 = queued; the OTA task downloads, GET /ota polls */
+}
+#endif /* APP_DEMO_OTA */
+
 static void page_section(http_response_t *resp, const char *title, const char *key)
 {
     char tmp[320];
@@ -287,6 +355,9 @@ static const route_t routes[] = {
     { "/status",   h_status,       NULL,            "GET" },
     { "/version",  h_version,      NULL,            "GET" },
     { "/log",      h_log,          NULL,            "GET" },
+#if defined(APP_DEMO_OTA) && APP_DEMO_OTA
+    { "/ota",      h_ota_get,      h_ota_post,      "GET, POST" },
+#endif
 };
 
 void http_route(const http_request_t *req, http_response_t *resp)
