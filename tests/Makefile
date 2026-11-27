@@ -15,9 +15,10 @@ EXE :=
 endif
 
 CFLAGS := -std=c11 -O1 -g -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Werror \
-          -I. -I../app/json -I../app/core -I../app/proto -I../app/registry -I../app/http
+          -I. -I../app/json -I../app/core -I../app/proto -I../app/registry -I../app/http \
+          -I../app/ota -I../app/config
 
-# test name -> sources under test
+# test name -> sources under test (DEFS_<test>: extra -D for that test only)
 SRC_test_json := ../app/json/json_writer.c ../app/json/json_parser.c ../app/json/json_reading.c
 SRC_test_serial_protocol := ../app/proto/serial_protocol.c
 SRC_test_registry := ../app/registry/registry.c ../app/json/json_writer.c
@@ -26,7 +27,11 @@ SRC_test_http := ../app/http/http_router.c ../app/http/http_response.c ../app/re
 
 SRC_test_fsm := ../app/core/gateway_fsm.c
 
-TESTS := test_json test_serial_protocol test_registry test_http test_fsm
+# OTA demo core (pure C): CRC32, block reassembly, RAM store, download state machine
+SRC_test_ota := ../app/ota/ota_crc32.c ../app/ota/ota_reasm.c ../app/ota/ota_storage_ram.c \
+                ../app/ota/ota_fsm.c
+
+TESTS := test_json test_serial_protocol test_registry test_http test_fsm test_ota
 
 BINS := $(addprefix $(BUILD)/,$(addsuffix $(EXE),$(TESTS)))
 
@@ -39,7 +44,7 @@ test: $(BINS)
 
 $(BUILD)/%$(EXE): %.c test_util.h Makefile
 	@mkdir -p $(BUILD)
-	$(HOSTCC) $(CFLAGS) $< $(SRC_$*) -o $@
+	$(HOSTCC) $(CFLAGS) $(DEFS_$*) $< $(SRC_$*) -o $@
 
 clean:
 	rm -rf $(BUILD)
