@@ -27,6 +27,13 @@ typedef enum {
     LOG_LVL_DEBUG
 } log_level_t;
 
+/* The "demo" tag exists only in a demo build (make DEMO=...), so the default build is unchanged. */
+#if defined(APP_DEMO) && APP_DEMO
+#define LOG_MODULES_DEMO(X) X(LOG_MOD_DEMO, "demo")
+#else
+#define LOG_MODULES_DEMO(X)
+#endif
+
 /* One entry per module; the name is the tag printed in the line. */
 #define LOG_MODULES(X) \
     X(LOG_MOD_MAIN, "main") \
@@ -41,7 +48,8 @@ typedef enum {
     X(LOG_MOD_W25Q, "w25q") \
     X(LOG_MOD_FS,   "fs")   \
     X(LOG_MOD_FSM,  "fsm")  \
-    X(LOG_MOD_SUP,  "sup")
+    X(LOG_MOD_SUP,  "sup")  \
+    LOG_MODULES_DEMO(X)
 
 typedef enum {
 #define LOG_ENUM_ENTRY(id, name) id,

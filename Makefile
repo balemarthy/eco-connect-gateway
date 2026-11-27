@@ -4,6 +4,8 @@
 #   make clean      remove build/
 #   make V=1        show full compiler command lines
 #   make test       build and run the host unit tests (needs a host gcc)
+#   make DEMO=x     add one demo task: none (default) | tcp_echo | mqtt | plusio | ota
+#                   (output in build/demo-x/, see docs/demos/)
 #
 # The toolchain (arm-none-eabi-*) and make must be on PATH. On Windows use build.ps1,
 # which adds the STM32CubeIDE toolchain to PATH for that one call.
@@ -44,6 +46,15 @@ endif
 # make WATCHDOG=0 : supervisor still reports missed tasks but never starts the IWDG
 WATCHDOG ?= 1
 DEFS += -DSUP_USE_IWDG=$(WATCHDOG)
+
+# make DEMO=<name> : one optional demo task (docs/demos/, settings in app/config/app_config.h).
+# DEMO=none (default) adds no define, no source and no include path: the firmware is the plain gateway.
+# Each demo builds into its own folder (build/demo-<name>/), so switching never mixes objects.
+DEMO ?= none
+DEMOS := none
+ifeq ($(filter $(DEMO),$(DEMOS)),)
+$(error DEMO=$(DEMO) is not one of: $(DEMOS))
+endif
 
 # ---------------------------------------------------------------- sources
 # Our code
@@ -148,9 +159,20 @@ INC := \
   -I$(LWIP_DIR)/src/include \
   -I$(LWIP_DIR)/contrib/ports/freertos/include
 
+# ---------------------------------------------------------------- demos (make DEMO=...)
+# SRC_DEMO: our demo code; SRC_DEMO_3P: vendored code a demo needs. Both empty for DEMO=none.
+SRC_DEMO :=
+SRC_DEMO_3P :=
+ifneq ($(DEMO),none)
+BUILD := build/demo-$(DEMO)
+DEFS  += -DAPP_DEMO=1
+INC   += -Iapp/config -Iapp/demos
+endif
+
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
 
-SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP) $(SRC_FATFS)
+SRC_C := $(SRC_APP) $(SRC_BSP) $(SRC_DRV) $(SRC_MW) $(SRC_HAL) $(SRC_RTOS) $(SRC_LWIP) $(SRC_FATFS) \
+         $(SRC_DEMO) $(SRC_DEMO_3P)
 
 # ---------------------------------------------------------------- flags
 OPT    := -Os -g3

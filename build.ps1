@@ -2,11 +2,16 @@
 #
 #   .\build.ps1                 # make all
 #   .\build.ps1 clean all       # any make goals
+#   .\build.ps1 -Demo mqtt clean all   # same as make DEMO=mqtt clean all (none|tcp_echo|mqtt|plusio|ota)
 #   $env:CUBEIDE_DIR = 'D:\ST\STM32CubeIDE_2.2.0\STM32CubeIDE'; .\build.ps1   # other install
 #
 # Nothing is installed and the user/system PATH is not changed.
 
+[CmdletBinding(PositionalBinding = $false)]
 param(
+    [ValidateSet('none', 'tcp_echo', 'mqtt', 'plusio', 'ota')]
+    [string]$Demo = 'none',
+
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Goals = @('all')
 )
@@ -29,7 +34,7 @@ $oldPath = $env:Path
 Push-Location $PSScriptRoot
 try {
     $env:Path = (Join-Path $gcc.FullName 'tools\bin') + ';' + (Join-Path $make.FullName 'tools\bin') + ';' + $oldPath
-    & make @Goals
+    & make @Goals ('DEMO=' + $Demo)
     $rc = $LASTEXITCODE
 }
 finally {

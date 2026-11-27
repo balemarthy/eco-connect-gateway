@@ -28,6 +28,9 @@
 #include "supervisor.h"
 #include "task_heartbeat.h"
 #include "uart_console.h"
+#if defined(APP_DEMO) && APP_DEMO
+#include "demo.h"                                 /* make DEMO=...: one extra demo task */
+#endif
 
 int main(void)
 {
@@ -56,6 +59,9 @@ int main(void)
     proto_start();                                /* framed serial link on USART1 */
     http_server_start();                          /* GET /temp, POST /interval, ... on :80 */
     heartbeat_start();
+#if defined(APP_DEMO) && APP_DEMO
+    demo_start();                                 /* tcp_echo | mqtt | plusio | ota */
+#endif
     vTaskStartScheduler();
 
     /* Only reached if the idle or timer task could not be created. */
