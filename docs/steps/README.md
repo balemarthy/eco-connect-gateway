@@ -48,8 +48,19 @@ The commit that adds this index comes last and cannot list its own hash.
    `all:`. Use `make clean all` / `.\build.ps1 clean all` there (as every note says);
    fixed in step 17 with `.DEFAULT_GOAL := all`.
 
+## After step 18
+The step notes describe the code as it was at each step. Later changes on `main`:
+- Optional demos (`make DEMO=...`): [../demos/README.md](../demos/README.md).
+- **IO layer** (`app/io/`, [../io-layer.md](../io-layer.md)): the console, link, SPI and I2C
+  drivers of steps 02, 04, 05, 10 and 12 (`drivers/uart_console.c`, `uart_link.c`, `spi_bus.c`,
+  `i2c_bus.c`) are replaced by `/UART2/`, `/UART1/`, `/SPI2/` and `/I2C1/` of one
+  open/read/write/ioctl API with a board table. Same behaviour: interrupt-driven console TX, an RX
+  ring for the link, one bus mutex and one chip select per SPI device. The I2C bus driver is now
+  implemented (`app/io/io_i2c.c`).
+- **Architecture and design document** for the whole gateway: [../architecture-design.md](../architecture-design.md).
+
 ## Left for mentees
-- Step 10: `drivers/i2c_bus.c` and the I2C sensor source in `app/sensor/sensor_task.c`.
+- Step 10: the I2C sensor source in `app/sensor/sensor_task.c`, on `/I2C1/` of the IO layer.
 - Step 15: `w25q_read()`, `w25q_page_program()`, `w25q_sector_erase()`.
 - On-board evidence: logic-analyser capture of the ENC28J60 init, Wireshark capture of an
   HTTP request and response, ping, stack high-water marks, demo video.
