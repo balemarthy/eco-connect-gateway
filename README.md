@@ -43,6 +43,9 @@ firmware above. Demo output goes to `build/demo-<name>/`.
 | `plusio` | FreeRTOS+IO style `open/read/write/ioctl` adapter over our drivers (skeleton) |
 | `ota` | image download with HTTP Range into a FatFs file (or `OTA_STORE=ram`), size + CRC32 check (`SET ota ...`, `POST /ota`) |
 
+Extra make variables: `OTA_STORE=ram` (OTA image in a 16 KB RAM buffer instead of the FatFs file),
+`EXTRA_DEFS="-DNAME=value"` (override any `#ifndef` setting of `app/config/app_config.h`).
+
 ## Interfaces
 
 | Where | What |
