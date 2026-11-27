@@ -51,7 +51,7 @@ DEFS += -DSUP_USE_IWDG=$(WATCHDOG)
 # DEMO=none (default) adds no define, no source and no include path: the firmware is the plain gateway.
 # Each demo builds into its own folder (build/demo-<name>/), so switching never mixes objects.
 DEMO ?= none
-DEMOS := none
+DEMOS := none tcp_echo
 ifeq ($(filter $(DEMO),$(DEMOS)),)
 $(error DEMO=$(DEMO) is not one of: $(DEMOS))
 endif
@@ -167,6 +167,12 @@ ifneq ($(DEMO),none)
 BUILD := build/demo-$(DEMO)
 DEFS  += -DAPP_DEMO=1
 INC   += -Iapp/config -Iapp/demos
+endif
+
+# DEMO=tcp_echo : echo server on TCP_ECHO_PORT (netconn)
+ifeq ($(DEMO),tcp_echo)
+DEFS     += -DAPP_DEMO_TCP_ECHO=1
+SRC_DEMO += app/demos/tcp_echo.c
 endif
 
 LDSCRIPT := bsp/STM32F411RETX_FLASH.ld
