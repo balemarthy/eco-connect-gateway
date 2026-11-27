@@ -18,7 +18,19 @@ sensor, watchdog on). Numbers from `arm-none-eabi-size -A` and `arm-none-eabi-nm
 Sections: `.text` 77 128, `.rodata` 13 472, `.data` 120, `.bss` 86 160,
 `._user_heap_stack` 2 560 (main stack 2 KB + newlib heap reserve 512 B, check only).
 
-## RAM by owner (static, from the map)
+### Since step 18
+| Build (`DEMO=none`) | Flash | RAM | Change |
+|---|---|---|---|
+| step 18 (above) | 91 152 B | 88 840 B | - |
+| + `storage_call()` path for the OTA FatFs store | 91 328 B | 89 056 B | +176 / +216 |
+| + IO layer (`app/io/`, `docs/io-layer.md`) | 98 572 B | 90 216 B | +7 244 / +1 160 |
+
+With the IO layer the console and link rows below change owner, not size: the console TX ring
+is now the 512-character TX queue of `/UART2/`, the link stream buffer the 512-byte RX ring of
+`/UART1/` (both in `io_board.o`). New: four IO control blocks with their write mutex, the HAL
+handles per board entry, 64 B console RX reserve. Per-demo sizes: `docs/demos/README.md`.
+
+## RAM by owner (static, from the map, step 18)
 
 | Owner | Item | Bytes |
 |---|---|---|

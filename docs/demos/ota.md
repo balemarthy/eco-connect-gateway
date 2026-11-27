@@ -63,6 +63,7 @@ RAM (`make DEMO=ota OTA_STORE=ram`), `OTA_MAX_IMAGE_SIZE_FATFS` 256 KB, `OTA_MAX
 | before the trim (RAM store, 1 KB blocks, 4 KB task stack) | 98,060 B | 111,504 B | 85.1 % |
 | `make DEMO=ota` (FatFs store, 512 B blocks, 2 KB task stack) | 99,488 B | 92,888 B | 70.9 % |
 | `make DEMO=ota OTA_STORE=ram` (16 KB RAM store, same block and stack) | 98,344 B | 109,160 B | 83.3 % |
+| `make DEMO=ota` after the IO layer (`docs/io-layer.md`, +1,160 B RAM in every build) | 106,732 B | 94,040 B | 71.7 % |
 
 Where the 18,616 B went (default build against the old one):
 - image buffer: the 16 KB RAM store is no longer linked; the FatFs store needs a `FIL`

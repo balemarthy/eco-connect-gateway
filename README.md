@@ -14,6 +14,7 @@ build it, then move on.
 | Layer | Choice |
 |---|---|
 | MCU support | CMSIS + STM32F4 HAL 1.8.1 (vendored in `third_party/`) |
+| Peripheral IO | own IO layer modelled on the FreeRTOS+IO API style: `io_open("/UART1/")`, read/write/ioctl, board table (`docs/io-layer.md`) |
 | RTOS | FreeRTOS-Kernel V11.1.0, GCC/ARM_CM4F port, heap_4 |
 | Network | lwIP 2.2.0 (NO_SYS=0, netconn) over an ENC28J60 on SPI2 |
 | Storage | FatFs R0.16 on a W25Q SPI NOR flash |
@@ -40,7 +41,7 @@ firmware above. Demo output goes to `build/demo-<name>/`.
 |---|---|
 | `tcp_echo` | echo server on TCP :7 (netconn) |
 | `mqtt` | publishes the reading JSON to `eco/<node>/temp` with coreMQTT (`third_party/coreMQTT`, MIT) |
-| `plusio` | FreeRTOS+IO style `open/read/write/ioctl` adapter over our drivers (skeleton) |
+| `plusio` | small demo task of the IO layer API: request checks, character-queue console RX, shared-SPI JEDEC read, I2C register read, link statistics |
 | `ota` | image download with HTTP Range into a FatFs file (or `OTA_STORE=ram`), size + CRC32 check (`SET ota ...`, `POST /ota`) |
 
 Extra make variables: `OTA_STORE=ram` (OTA image in a 16 KB RAM buffer instead of the FatFs file),
@@ -60,7 +61,8 @@ Extra make variables: `OTA_STORE=ram` (OTA image in a 16 KB RAM buffer instead o
 ```
 app/          application: main, tasks, log, json, protocol, registry, http, storage, core (FSM, supervisor)
 bsp/          board support: startup, linker script, clocks, pins, interrupts, IWDG
-drivers/      peripheral and device drivers (UART console/link, SPI, ENC28J60, I2C, W25Q)
+app/io/       IO layer: open/read/write/ioctl by path, board table, UART/SPI/I2C drivers, transfer modes
+drivers/      device drivers on the IO layer (ENC28J60, W25Q)
 middleware/   glue between third-party stacks and our drivers (lwIP port, FatFs port)
 third_party/  vendored code, unmodified, with its licence files
 docs/         architecture, memory budget, one note per step in docs/steps/
@@ -68,6 +70,8 @@ tests/        host unit tests for the pure-C modules
 ```
 
 ## Pin map (NUCLEO-F411RE)
+
+UART, SPI, I2C pins and chip selects come from `app/io/io_board_f411.h`; the rest from `bsp/board.h`.
 
 | Function | Pins |
 |---|---|
@@ -94,7 +98,9 @@ Not yet run on hardware.
 | ENC28J60 RX/TX with buffer errata | done | 07 |
 | lwIP on FreeRTOS, ENC28J60 netif, static IP / DHCP | done | 08-09 |
 | Sensor task, sampling timer, readings queue (simulated source) | done | 10 |
-| **I2C bus driver + I2C sensor driver bodies** | **mentee task** | 10 |
+| I2C bus driver (`/I2C1/` of the IO layer) | done | IO layer |
+| **I2C sensor driver bodies** | **mentee task** | 10 |
+| IO layer for UART / SPI / I2C (`app/io/`, `docs/io-layer.md`) | done (compile + host tests) | - |
 | Heap-free JSON writer/parser + host tests | done | 11 |
 | Framed serial protocol + host tests | done | 12 |
 | GET-SET registry + host tests | done | 13 |
@@ -106,7 +112,7 @@ Not yet run on hardware.
 | Memory budget, architecture doc | done | 18 |
 | **On-board bring-up evidence** (logic analyser, Wireshark, ping, demo) | **mentee task** | - |
 
-See `docs/memory-budget.md` (flash 17 %, RAM 68 %) and `docs/architecture.md`.
+See `docs/memory-budget.md` (flash 19 %, RAM 69 % with the IO layer) and `docs/architecture.md`.
 
 ## Licences
 

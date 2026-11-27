@@ -70,6 +70,7 @@ the log module formats into its own queue entry, the JSON writer formats numbers
 | 1 | log, hb, storage, supervisor | background; supervisor last on purpose (starvation -> reset) |
 
 NVIC: USART1 5, EXTI4 6, USART2 7, TIM11 15 (all at or below the FreeRTOS syscall limit 5).
+The USART priorities are set in the IO board table (`app/io/io_board_f411.h`).
 
 ## Interfaces
 - HTTP: see `app/http/http_router.h` (routes, JSON errors).
@@ -77,7 +78,9 @@ NVIC: USART1 5, EXTI4 6, USART2 7, TIM11 15 (all at or below the FreeRTOS syscal
 - Registry keys: see `app/registry/commands.h`.
 
 ## Layers
-`app/` uses `drivers/` and `middleware/`; `drivers/` use `bsp/` and the HAL; nothing in
-`drivers/` knows about lwIP or FatFs (that glue is `middleware/`). The pure-C modules
+`app/` uses `drivers/` and `middleware/`; every UART, SPI and I2C access goes through the IO
+layer `app/io/` (open by path, read/write/ioctl, board table `app/io/io_board_f411.h`, see
+`docs/io-layer.md`); the device drivers in `drivers/` (ENC28J60, W25Q) use the IO layer and
+`bsp/`; nothing in `drivers/` knows about lwIP or FatFs (that glue is `middleware/`). The pure-C modules
 (`json`, `proto/serial_protocol`, `registry`, `http_router/response`, `gateway_fsm`) have no
 RTOS or HAL dependency and are built twice: for the target and for the host tests.
