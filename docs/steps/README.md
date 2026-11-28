@@ -57,6 +57,11 @@ The step notes describe the code as it was at each step. Later changes on `main`
   open/read/write/ioctl API with a board table. Same behaviour: interrupt-driven console TX, an RX
   ring for the link, one bus mutex and one chip select per SPI device. The I2C bus driver is now
   implemented (`app/io/io_i2c.c`).
+  The IO layer comes in two commits. `89b9dc5` adds `app/io/` and removes the old bus drivers
+  (`drivers/uart_console`, `uart_link`, `spi_bus`, `i2c_bus`) and `app/plusio/` before the firmware
+  is switched onto the IO layer, so the firmware does not build at that commit (`make test` passes).
+  The next commit, `5ae0f5f`, switches every user onto the IO layer and the firmware builds again.
+  Following the history: skip the firmware build at `89b9dc5` and continue at `5ae0f5f`.
 - **Architecture and design document** for the whole gateway: [../architecture-design.md](../architecture-design.md).
 
 ## Left for mentees

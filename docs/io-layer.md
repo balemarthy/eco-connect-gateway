@@ -187,6 +187,11 @@ driver, minus about 2.8 KB for the four drivers it replaces. RAM: four control b
 the 512 B console queue and 512 B link ring (the same sizes as the ring and stream buffer before),
 and 64 B for console RX.
 
+## History
+The IO layer arrives in `89b9dc5` (`app/io/`, host tests) and `5ae0f5f` (every user switched onto it).
+`89b9dc5` already removes the old bus drivers and `app/plusio/`, so the firmware does not build at that
+commit while the host tests pass; it builds again at `5ae0f5f`.
+
 ## Limits
 - SPI and I2C transfers are polled (no DMA, no interrupt-driven SPI/I2C modes); UART zero copy is
   implemented and host tested but no default user selects it.
