@@ -189,6 +189,26 @@ stack: FreeRTOS + lwIP instead of Zephyr, I2C sensor instead of BLE node.
 Rules: every UART, SPI and I2C access goes through `app/io/io.h`; `drivers/` never include lwIP or
 FatFs; peripheral pins, IRQ priorities and defaults exist only in the board table.
 
+```mermaid
+flowchart TB
+    APP["<b>Application tasks</b>"]
+    LOGIC["<b>Protocol logic</b><br/>JSON · HTTP · OTA"]
+    MW["<b>Middleware</b><br/>lwIP · FatFs · FreeRTOS"]
+    DRV["<b>Device drivers</b><br/>ENC28J60 · W25Q"]
+    IO["<b>IO layer</b>"]
+    BSP["<b>BSP + STM32F4 HAL</b>"]
+    PER["<b>Peripherals</b><br/>UART · SPI · I2C"]
+
+    APP --> LOGIC --> MW --> DRV --> IO --> BSP --> PER
+
+    classDef base fill:#F2F8F9,stroke:#007284,stroke-width:3px,color:#1A1A1A
+    classDef hot fill:#FDEBE1,stroke:#F07839,stroke-width:3px,color:#1A1A1A
+    class APP,LOGIC,MW,DRV,BSP,PER base
+    class IO hot
+    linkStyle default stroke:#007284,stroke-width:3px
+```
+*Figure 1. Layer stack: application tasks call the pure-C protocol logic (JSON, HTTP, OTA) over lwIP, FatFs and FreeRTOS; the ENC28J60 and W25Q drivers reach UART, SPI and I2C only through the IO layer and the STM32F4 BSP/HAL (`app/`, `middleware/`, `drivers/`, `app/io/`, `bsp/`).*
+
 | Module | Responsibility | Pattern | Pure C | Files |
 |---|---|---|---|---|
 | io core | open by path, request checks, mode rules, dispatch, statistics | facade over a descriptor table; driver interface (`io_driver_t`) | yes (host-built) | `app/io/io_core.c`, `io.h`, `io_driver.h` |
@@ -233,34 +253,41 @@ FatFs; peripheral pins, IRQ priorities and defaults exist only in the board tabl
 | demo hook | `void demo_start(void)` - one per build, called from `main()` | `app/demos/demo.h` |
 
 ### 3.3 Data flow
-```mermaid
-sequenceDiagram
-    autonumber
-    participant TMR as sample timer [timer task]
-    participant SEN as sensor [prio 3]
-    participant APP as app [prio 3]
-    participant STO as storage [prio 1]
-    participant REG as registry (latest, JSON)
-    participant HTTP as http [prio 2]
-    participant MQ as mqtt demo [prio 2]
-    actor CL as network client
-    TMR-)SEN: notify every interval
-    SEN->>SEN: read source -> reading_t
-    SEN-)APP: readings queue (copy, 20 B)
-    APP->>APP: latest = r (critical section)
-    APP-)STO: storage queue (copy)
-    STO->>STO: json_reading_write -> READINGS.LOG + RAM tail
-    CL->>HTTP: GET /temp
-    HTTP->>REG: registry_get("temp")
-    REG->>APP: app_latest()
-    REG-->>HTTP: {"node":1,"value":25.10,...}
-    HTTP-->>CL: 200 application/json
-    MQ->>APP: app_latest() every 10 s
-    MQ->>MQ: json_reading_write -> MQTT_Publish eco/1/temp
-```
 The reading is a fixed-size struct by value until one of the three formatters calls
 `json_reading_write()` / `json_reading_members()`: HTTP and serial through the registry, storage and
 MQTT directly. One formatter means the payload cannot diverge between interfaces.
+
+```mermaid
+flowchart TB
+    SEN(["<b>Sensor task</b>"])
+    APP(["<b>App task</b>"])
+    STO(["<b>Storage task</b>"])
+    LAT["<b>Latest reading</b>"]
+    J["<b>json_reading</b><br/>binary → JSON"]
+    FILE["Flash log file"]
+    HTTP["GET /temp"]
+    SER["Serial GET temp"]
+    MQTT["MQTT publish"]
+
+    SEN -->|"reading_t, binary"| APP
+    APP --> STO
+    APP --> LAT
+    STO --> J
+    LAT --> J
+    J --> FILE
+    J --> HTTP
+    J --> SER
+    J --> MQTT
+
+    classDef bin fill:#F2F8F9,stroke:#007284,stroke-width:3px,color:#1A1A1A
+    classDef json fill:#FDEBE1,stroke:#F07839,stroke-width:3px,color:#1A1A1A
+    classDef out fill:#FFFFFF,stroke:#F07839,stroke-width:3px,color:#1A1A1A
+    class SEN,APP,STO,LAT bin
+    class J json
+    class FILE,HTTP,SER,MQTT out
+    linkStyle default stroke:#007284,stroke-width:3px
+```
+*Figure 2. A reading stays a binary `reading_t` through the queues, the storage task and the latest-reading copy; only `json_reading` turns it into JSON, once per consumer: the flash log file, HTTP GET /temp, the serial GET temp frame and the MQTT publish (`app/json/json_reading.c`).*
 
 Serial path through the IO layer: USART1 RXNE interrupt -> `/UART1/` RX ring (512 B) + semaphore ->
 `io_read()` in the protocol task -> frame decoder -> registry -> `io_write()` (polled, 100 ms).
@@ -286,6 +313,34 @@ FatFs -> `diskio.c` -> W25Q -> `/SPI2/` (bus mutex, chip select 1).
 | 1 | hb | 384 | periodic (100 ms blink in FAULT) | 2 s | LD2 |
 | 1 | supervisor | 512 | 250 ms + event queue | - | IWDG feed, gateway FSM |
 
+```mermaid
+flowchart TB
+    SEN(["<b>Sensor</b>"])
+    QR[("readings queue")]
+    APP(["<b>App</b>"])
+    QS[("storage queue")]
+    QL[("log queue")]
+    QE[("event queue")]
+    STO(["<b>Storage</b>"])
+    LOG(["<b>Log</b>"])
+    SUP(["<b>Supervisor</b>"])
+
+    SEN --> QR --> APP
+    APP --> QS --> STO
+    APP --> QL --> LOG
+    APP --> QE --> SUP
+
+    classDef task fill:#F2F8F9,stroke:#007284,stroke-width:3px,color:#1A1A1A
+    classDef queue fill:#FDEBE1,stroke:#F07839,stroke-width:3px,color:#1A1A1A
+    class SEN,APP,STO,LOG,SUP task
+    class QR,QS,QL,QE queue
+    linkStyle default stroke:#007284,stroke-width:3px
+```
+*Figure 3. Task data flow: the sensor task posts each reading to the readings queue, and the app task fans it out through the storage, log and event queues to the storage, log and supervisor tasks (`sensor_task.c`, `app_task.c`, `storage_task.c`, `log.c`, `supervisor.c`).*
+
+Every task except tcpip, timer service and sup calls `sup_checkin()` within its window (enc_rx
+registers as `net`, 2 s); the supervisor probes tcpip with `tcpip_try_callback()`.
+
 Ownership rules (each shared resource has exactly one owner, others go through a queue, a copy or the
 mutex): console TX = log task; `/UART1/` = proto task; FatFs = storage task (the OTA store sends jobs);
 latest reading = app task (readers copy under a 20-byte critical section); `/SPI2/` = whoever holds the
@@ -300,8 +355,49 @@ waited for, so its arguments (kept in the store object, not on the caller's stac
 
 Gateway FSM (`app/core/gateway_fsm.c`): states IDLE, SAMPLING, CONNECTED, REPORTING, FAULT derived
 from conditions set by events READING_OK/FAIL, LINK_UP/DOWN, REPORT, REPORT_IDLE, TASK_STALL.
+The state is re-derived after every event, in priority order (`derive()` in `gateway_fsm.c`): `stalled` or
+`fail_run` >= 3 -> FAULT; otherwise no reading yet -> IDLE; no link -> SAMPLING; `reporting` -> REPORTING;
+else CONNECTED. A stall stops the IWDG feed (reset in 2 s); a sensor fault clears with the next good reading.
+
 OTA FSM (`app/ota/ota_fsm.c`): IDLE -> REQUESTED -> DOWNLOADING -> VERIFYING -> READY / FAILED; invalid
 events are ignored and change nothing.
+```mermaid
+flowchart TB
+    IDLE(["<b>IDLE</b>"])
+    REQ(["<b>REQUESTED</b>"])
+    DL(["<b>DOWNLOADING</b><br/>BLOCK, any order"])
+    VER(["<b>VERIFYING</b>"])
+    READY(["<b>READY</b>"])
+    FAIL(["<b>FAILED</b><br/>error or CRC mismatch"])
+    RST(["<b>RESET</b> → IDLE"])
+
+    IDLE -->|"REQUEST"| REQ
+    REQ -->|"BEGIN"| DL
+    DL -->|"last BLOCK"| VER
+    VER -->|"VERIFY ok"| READY
+    REQ -.-> FAIL
+    DL -.-> FAIL
+    VER -.-> FAIL
+    READY --> RST
+    FAIL --> RST
+
+    classDef st fill:#F2F8F9,stroke:#007284,stroke-width:3px,color:#1A1A1A
+    classDef ok fill:#007284,stroke:#007284,stroke-width:3px,color:#FFFFFF
+    classDef bad fill:#FDEBE1,stroke:#F07839,stroke-width:3px,color:#1A1A1A
+    class IDLE,REQ,DL,VER,RST st
+    class READY ok
+    class FAIL bad
+    linkStyle default stroke:#007284,stroke-width:3px
+    linkStyle 4,5,6 stroke:#F07839,stroke-width:3px
+```
+*Figure 4. OTA state machine: REQUEST arms it, BEGIN opens the store, BLOCKs arrive in any order until the last missing one, VERIFY checks size and CRC32, and any error or mismatch lands in FAILED; RESET returns READY or FAILED to IDLE, and a new REQUEST is also accepted from either (`app/ota/ota_fsm.c`).*
+
+Download and reassembly in `DEMO=ota` (`ota_task.c` sequences `ota_fsm.c`, `ota_reasm.c`, `ota_http.c`;
+default store `OTA_STORE=fatfs`, every store call is a `storage_call()` job; `OTA_STORE=ram` uses
+`ota_storage_ram.c` instead): a start command (`SET ota` or `POST /ota`) reaches the OTA task through the OTA
+command queue; the first HTTP Range request (`bytes=0-511`) returns the total size for BEGIN; each missing
+512 B block is then fetched with Range, up to 3 tries, and its bit set in the reassembly bitmap (duplicates are
+ignored); after the last block the store is closed and VERIFY reads the image back in 64 B steps for the CRC32.
 
 IO modes per peripheral (board defaults, `app/io/io_board_f411.h`):
 
@@ -311,6 +407,75 @@ IO modes per peripheral (board defaults, `app/io/io_board_f411.h`):
 | `/UART2/` | character queue 512 | polled (unused; char queue in `DEMO=plusio`) | the log task copies a line and goes on, the TXE interrupt sends it |
 | `/SPI2/` | zero copy (bus mutex) | polled | two devices, two tasks; multi-cycle sequences under one lock |
 | `/I2C1/` | polled | polled | one user (sensor task) |
+
+IO layer: one call path for every user, the board descriptor table picks the driver and the modes
+(`app/io/`; details in `docs/io-layer.md`).
+```mermaid
+flowchart TB
+    U1["Log task"]
+    U2["Proto task"]
+    U3["Net + flash drivers"]
+    U4["Sensor task"]
+    API["<b>IO API</b><br/>open · read · write · ioctl"]
+    M1["Circular buffer"]
+    M2["Character queue"]
+    M3["Polled"]
+    M4["Zero copy"]
+    P1["<b>UART</b>"]
+    P2["<b>I2C</b>"]
+    P3["<b>SPI</b>"]
+
+    U1 --> API
+    U2 --> API
+    U3 --> API
+    U4 --> API
+    API --> M1
+    API --> M2
+    API --> M3
+    API --> M4
+    M1 --> P1
+    M2 --> P1
+    M3 --> P1
+    M3 --> P2
+    M3 --> P3
+    M4 --> P3
+
+    classDef user fill:#FFFFFF,stroke:#007284,stroke-width:3px,color:#1A1A1A
+    classDef api fill:#007284,stroke:#007284,stroke-width:3px,color:#FFFFFF
+    classDef mode fill:#FDEBE1,stroke:#F07839,stroke-width:3px,color:#1A1A1A
+    classDef per fill:#F2F8F9,stroke:#007284,stroke-width:3px,color:#1A1A1A
+    class U1,U2,U3,U4 user
+    class API api
+    class M1,M2,M3,M4 mode
+    class P1,P2,P3 per
+    linkStyle default stroke:#007284,stroke-width:3px
+```
+*Figure 5. Every IO user goes through one API (`io_open`, `io_read`, `io_write`, `io_ioctl`), which routes each transfer through one of four modes onto the UART, I2C or SPI driver; the arrows show the board-default mode per peripheral (`app/io/`, `io_board_f411.h`).*
+
+`DEMO=plusio` (`plusio_demo.c`) opens all four paths and selects a character queue for `/UART2/` RX at run time.
+
+Shared `/SPI2/`: the zero-copy write mutex is the bus lock, so the ENC28J60 and the W25Q never
+drive the bus together. The holder selects its chip, transfers and deselects, then releases the mutex;
+priority inheritance lifts the holder to the priority of a waiting task. No mutex within 50 ms gives
+`IO_ERR_TIMEOUT`, and the driver call returns an error status.
+```mermaid
+flowchart TB
+    W["<b>W25Q flash driver</b><br/>storage task"]
+    E["<b>ENC28J60 driver</b><br/>network tasks"]
+    M["<b>SPI2 write mutex</b><br/>50 ms timeout"]
+    S["<b>SPI2 bus</b>"]
+
+    W --> M
+    E --> M
+    M --> S
+
+    classDef base fill:#F2F8F9,stroke:#007284,stroke-width:3px,color:#1A1A1A
+    classDef hot fill:#FDEBE1,stroke:#F07839,stroke-width:3px,color:#1A1A1A
+    class W,E,S base
+    class M hot
+    linkStyle default stroke:#007284,stroke-width:3px
+```
+*Figure 6. The W25Q flash driver (storage task) and the ENC28J60 driver (network tasks) share SPI2 by taking the bus write mutex with a 50 ms timeout before selecting their chip (`io_spi.c`, `w25q.c`, `enc28j60.c`).*
 
 ### 3.5 Memory
 | Build | Flash | RAM | Delta vs none | Main RAM items |
